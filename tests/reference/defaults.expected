@@ -1,0 +1,11 @@
+compute
+loops 1
+loop 0 curves 8
+line 15 10 15 0
+arc 15 0 10 -5 10 0 1
+line 10 -5 0 -5
+arc 0 -5 -5 0 0 0 1
+line -5 0 -5 10
+arc -5 10 0 15 0 10 1
+line 0 15 10 15
+arc 10 15 15 10 10 10 1
