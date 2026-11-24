@@ -3,7 +3,7 @@
 Open source Rust engine for computing 2D Euclidean Voronoi diagrams of points, straight-line segments, and circular arcs. It computes offset curves of input line segments and circular arcs.
 
 ```rust
-use openevdop::{OffsetCurve, Orientation, Offsetter};
+use open_evdop::{OffsetCurve, Orientation, Offsetter};
 
 let mut v = Offsetter::new();
 v.parameters.offset_radius = 1.0;
@@ -40,3 +40,7 @@ for l in 0..v.num_offset_loops() {
 
 - `tests/offset_geometry.rs` and `tests/stress.rs` check the geometry. Every loop must be closed, contain no zero-length curves, and lie at exactly the offset distance from the input. The inputs include random polygons of up to 5,000 vertices.
 - `tests/reference_outputs.rs` replays `tests/reference/*.script` and compares the result with the recorded `*.expected` output. Values must agree to within 1e-12 relative. In practice they are bit-identical, apart from vertices of approximated arcs, which come from `sin`/`cos`.
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

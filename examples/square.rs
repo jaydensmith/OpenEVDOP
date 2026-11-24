@@ -1,4 +1,4 @@
-use openevdop::{OffsetCurve, Offsetter};
+use open_evdop::{OffsetCurve, Offsetter};
 
 fn main() {
     let mut v = Offsetter::new();

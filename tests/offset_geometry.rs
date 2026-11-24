@@ -1,4 +1,4 @@
-use openevdop::{OffsetCurve, OffsetError, OffsetParameters, Offsetter, Orientation};
+use open_evdop::{OffsetCurve, OffsetError, OffsetParameters, Offsetter, Orientation};
 use std::f64::consts::{PI, TAU};
 
 const LINE_TOLERANCE: f64 = 1e-9;

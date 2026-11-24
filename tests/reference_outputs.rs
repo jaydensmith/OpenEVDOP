@@ -3,7 +3,7 @@
 //!
 //! Script lines: `P left right radius recover_arcs apx_arcs depletion tolerance`,
 //! `L xs ys xe ye`, `A xs ys xe ye xc yc clockwise`, `R` (reset input), `C` (compute and dump).
-use openevdop::{OffsetCurve, OffsetParameters, Offsetter, Orientation};
+use open_evdop::{OffsetCurve, OffsetParameters, Offsetter, Orientation};
 use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
