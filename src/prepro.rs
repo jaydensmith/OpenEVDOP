@@ -3,8 +3,8 @@ use crate::data::dist;
 use crate::real::Real;
 use crate::state::*;
 
-fn sign_zero(v: f64) -> i32 {
-    if ZERO < v {
+fn sign_zero<R: Real>(v: R) -> i32 {
+    if v > ZERO {
         1
     } else if v >= -ZERO {
         0
@@ -61,8 +61,9 @@ impl<R: Real> Engine<R> {
             let (cx, cy) = (arc.cx, arc.cy);
             let x12 = (R::of(x1) - x2).stored();
             let y12 = (R::of(y1) - y2).stored();
-            let orient = ((R::of(cx) - x1) * y12 + R::of(x12) * (R::of(y1) - cy)).stored();
-            let (u, v) = if 0.0 > orient {
+            let y1_cy = (R::of(y1) - cy).stored();
+            let orient = (R::of(cx) - x1) * y12 + R::of(x12) * y1_cy;
+            let (u, v) = if orient < 0.0 {
                 (x12, y12)
             } else {
                 ((R::of(x2) - x1).stored(), (R::of(y2) - y1).stored())
@@ -79,8 +80,8 @@ impl<R: Real> Engine<R> {
                 continue;
             }
 
-            let d1 = dist(R::of(x1) - cx, R::of(y1) - cy).stored();
-            let d2 = dist(R::of(x2) - cx, R::of(y2) - cy).stored();
+            let d1 = dist(R::of(x1) - cx, R::of(y1_cy)).stored();
+            let d2 = dist(R::of(x2) - cx, R::of(y2) - cy);
             let mut r = ((R::of(d1) + d2) * 0.5).stored();
             if !(half <= r) {
                 r = half;
@@ -96,29 +97,29 @@ impl<R: Real> Engine<R> {
                 continue;
             }
 
-            let diff = (R::of(d1) - d2).stored();
-            if SMALL < diff || diff < -SMALL {
+            let diff = R::of(d1) - d2;
+            if diff > SMALL || diff < -SMALL {
                 let mid_x = ((R::of(x2) + x1) * 0.5).stored();
                 let mid_y = ((R::of(y2) + y1) * 0.5).stored();
-                let w = (R::of(r) * r - R::of(half) * half).stored();
-                let k = if 0.0 < w {
-                    (R::of(w).sqrt() / chord).stored()
+                let w = R::of(r) * r - R::of(half) * half;
+                let k = if w > 0.0 {
+                    w.sqrt() / chord
                 } else {
-                    0.0
+                    R::of(0.0)
                 };
                 let new_cx = (R::of(-v) * k + mid_x).stored();
-                let new_cy = (R::of(k) * u + mid_y).stored();
-                let orient2 =
-                    ((R::of(new_cx) - x1) * y12 + R::of(x12) * (R::of(y1) - new_cy)).stored();
+                let new_cy = (k * u + mid_y).stored();
+                let y1_new_cy = (R::of(y1) - new_cy).stored();
+                let orient2 = (R::of(new_cx) - x1) * y12 + R::of(x12) * y1_new_cy;
                 debug_assert!(
-                    !(ZERO < orient2 || orient2 < -ZERO)
+                    !(orient2 > ZERO || orient2 < -ZERO)
                         || s_orient == 0
                         || sign_zero(orient2) == s_orient,
                     "(SignEps(orient, ZERO) == 0) || (s_orient == 0) || (SignEps(orient, ZERO) == s_orient)"
                 );
-                let d1 = dist(R::of(x1) - new_cx, R::of(y1) - new_cy).stored();
-                let d2 = dist(R::of(x2) - new_cx, R::of(y2) - new_cy).stored();
-                r = ((R::of(d2) + d1) * 0.5).stored();
+                let d1 = dist(R::of(x1) - new_cx, R::of(y1_new_cy)).stored();
+                let d2 = dist(R::of(x2) - new_cx, R::of(y2) - new_cy);
+                r = ((d2 + d1) * 0.5).stored();
                 self.arcs[i].cx = new_cx;
                 self.arcs[i].cy = new_cy;
             }
