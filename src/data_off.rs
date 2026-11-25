@@ -211,8 +211,7 @@ impl<R: Real> Engine<R> {
         let fy = (R::of(p.y) - bd).stored();
         let na = -a;
         let k = (-(R::of(p.x) * b) - R::of(na) * p.y).stored();
-        let side_far = (R::of(b) * far.x + R::of(na) * far.y + k).stored();
-        let sgn_far = sign_of(side_far);
+        let sgn_far = sign_of(R::of(b) * far.x + R::of(na) * far.y + k);
 
         let disc = ((R::of(d) + d - d) * d).stored();
         let x = if disc < 0.0 {
@@ -221,12 +220,11 @@ impl<R: Real> Engine<R> {
             (R::of(ad) + fx + R::of(f64::from(sgn_far)) * b * R::of(disc).sqrt()).stored()
         };
         let y = if disc < 0.0 {
-            (R::of(bd) * 0.5 + fy).stored()
+            R::of(bd) * 0.5 + fy
         } else {
-            (R::of(bd) + fy - R::of(f64::from(sgn_far)) * a * R::of(disc).sqrt()).stored()
+            R::of((R::of(bd) + fy).stored()) - R::of(f64::from(sgn_far)) * a * R::of(disc).sqrt()
         };
-        let side = (R::of(x) * b + R::of(y) * na + k).stored();
-        let mut sgn = sign_of(side);
+        let mut sgn = sign_of(R::of(x) * b + y * na + k);
         if sgn != sgn_far {
             sgn = -sgn;
         }
@@ -320,7 +318,8 @@ impl<R: Real> Engine<R> {
         let y = if disc < 0.0 {
             (R::of(d) * b * 0.5 + data.py).stored()
         } else {
-            (R::of(b) * t + data.py - R::of(sgn) * a * R::of(disc).sqrt()).stored()
+            (R::of((R::of(b) * t + data.py).stored()) - R::of(sgn) * a * R::of(disc).sqrt())
+                .stored()
         };
         (x, y)
     }
@@ -370,14 +369,12 @@ impl<R: Real> Engine<R> {
         if s0 < 0.0 {
             s0 = 0.0;
         }
-        let mut s1 = (R::of(t) * t - data.d).stored();
-        if s1 < 0.0 {
-            s1 = 0.0;
-        }
-        let delta = (R::of(s1).sqrt() - R::of(s0).sqrt()).stored();
+        let s1 = R::of(t) * t - data.d;
+        let s1 = if s1 < 0.0 { 0.0 } else { s1.stored() };
+        let delta = R::of(R::of(s1).sqrt().stored()) - R::of(s0).sqrt();
         (
             (R::of(data.px) * delta + lo.x).stored(),
-            (R::of(delta) * data.py + lo.y).stored(),
+            (delta * data.py + lo.y).stored(),
         )
     }
 
@@ -434,7 +431,7 @@ fn within_zero<R: Real>(v: R) -> bool {
     v >= -ZERO && v <= ZERO
 }
 
-fn sign_of(v: f64) -> i32 {
+fn sign_of<R: Real>(v: R) -> i32 {
     if v > 0.0 {
         1
     } else if v < 0.0 {
