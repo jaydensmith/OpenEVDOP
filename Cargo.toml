@@ -10,4 +10,4 @@ keywords = ["voronoi", "offset", "geometry", "cad", "cam"]
 categories = ["algorithms", "mathematics"]
 
 [dependencies]
-x87-extended = { version = "0.1.0", path = "../x87-extended" }
+x87-extended = "0.1.0"

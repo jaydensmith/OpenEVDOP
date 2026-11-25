@@ -46,6 +46,8 @@ dependencies = [
 [[package]]
 name = "x87-extended"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3beae00c5f6fa1ab790e35f4ddbc2c81d66a11a6eb912b72e391189c54773d2c"
 dependencies = [
  "num-bigint",
  "num-integer",
