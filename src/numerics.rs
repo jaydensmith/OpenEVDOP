@@ -22,15 +22,16 @@ pub(crate) fn solve_2x2<R: Real>(a: [[f64; 2]; 2], b: [f64; 2]) -> Option<([f64;
     } else {
         (0, 1)
     };
-    let ratio = (R::of(a[q][col]) / a[p][col]).stored();
-    let elim = (R::of(a[q][other]) - R::of(a[p][other]) * ratio).stored();
-    if !nonzero(elim) {
+    let ratio = R::of(a[q][col]) / a[p][col];
+    let elim = R::of(a[q][other]) - R::of(a[p][other]) * ratio;
+    if !(elim > PIVOT_TINY || elim < -PIVOT_TINY) {
         return None;
     }
+    let other_value = (R::of(b[q]) - R::of(b[p]) * ratio) / elim;
     let mut x = [0.0; 2];
-    x[other] = ((R::of(b[q]) - R::of(b[p]) * ratio) / elim).stored();
-    x[col] = ((R::of(b[p]) - R::of(x[other]) * a[p][other]) / a[p][col]).stored();
-    Some((x, elim))
+    x[other] = other_value.stored();
+    x[col] = ((R::of(b[p]) - other_value * a[p][other]) / a[p][col]).stored();
+    Some((x, elim.stored()))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,10 +146,11 @@ pub(crate) fn exact_sign(f: f64) -> i32 {
     }
 }
 
+/// The squared distance from the differences as they are in the registers.
 pub(crate) fn dist2<R: Real>(a: Point, b: Point) -> R {
-    let dx = (R::of(a.x) - b.x).stored();
-    let dy = (R::of(a.y) - b.y).stored();
-    R::of(dy) * dy + R::of(dx) * dx
+    let dx = R::of(a.x) - b.x;
+    let dy = R::of(a.y) - b.y;
+    dy * dy + dx * dx
 }
 
 impl<R: Real> Engine<R> {

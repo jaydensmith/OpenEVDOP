@@ -19,24 +19,32 @@ pub(crate) fn pnt_pnt_cntr<R: Real>(a: Point, b: Point) -> (Point, f64) {
     (center, dist2::<R>(a, center).stored())
 }
 
+/// An edge's midpoint and unit direction; the midpoint's x and the direction's y may still be
+/// in the registers.
+#[derive(Clone, Copy)]
+struct Edge<R> {
+    mid_x: R,
+    mid_y: f64,
+    u_x: f64,
+    u_y: R,
+}
+
 /// Intersection of the perpendicular bisectors of edges `base` and `other`,
 /// parametrised from the midpoint of `base`.
-fn bisector_intersection<R: Real>(
-    base_mid: Point,
-    base_u: Point,
-    other_mid: Point,
-    other_u: Point,
-) -> Option<Point> {
-    let a = [[-base_u.y, other_u.y], [base_u.x, -other_u.x]];
+fn bisector_intersection<R: Real>(base: Edge<R>, other: Edge<R>) -> Option<Point> {
+    let a = [
+        [(-base.u_y).stored(), other.u_y.stored()],
+        [base.u_x, -other.u_x],
+    ];
     let rhs = [
-        (R::of(other_mid.x) - base_mid.x).stored(),
-        (R::of(other_mid.y) - base_mid.y).stored(),
+        (other.mid_x - base.mid_x).stored(),
+        (R::of(other.mid_y) - base.mid_y).stored(),
     ];
     let (x, _) = solve_2x2::<R>(a, rhs)?;
     let s = x[0];
     Some(Point {
-        x: (R::of(-base_u.y) * s + base_mid.x).stored(),
-        y: (R::of(s) * base_u.x + base_mid.y).stored(),
+        x: (base.mid_x + -base.u_y * s).stored(),
+        y: (R::of(s) * base.u_x + base.mid_y).stored(),
     })
 }
 
@@ -88,71 +96,60 @@ pub(crate) fn circumcircle_3pts<R: Real>(a: Point, b: Point, c: Point) -> (bool,
         return (false, center, r2);
     }
     let (ca_x, ca_y) = ((R::of(a.x) - c.x).stored(), (R::of(a.y) - c.y).stored());
-    let ca = (R::of(ca_x) * ca_x + R::of(ca_y) * ca_y).sqrt().stored();
+    let ca = (R::of(ca_y) * ca_y + R::of(ca_x) * ca_x).sqrt();
     debug_assert!(ca >= 0.0, "ca >= 0.0");
     if ca <= ZERO {
         let (center, r2) = degenerate_3pts_cntr::<R>(c, a, b);
         return (false, center, r2);
     }
 
-    let u_ab = Point {
-        x: (R::of(ab_x) / ab).stored(),
-        y: (R::of(ab_y) / ab).stored(),
-    };
-    let u_bc = Point {
-        x: (R::of(bc_x) / bc).stored(),
-        y: (R::of(bc_y) / bc).stored(),
-    };
-    let u_ca = Point {
-        x: (R::of(ca_x) / ca).stored(),
-        y: (R::of(ca_y) / ca).stored(),
-    };
-    let cos_b = (R::of(u_bc.x) * u_ab.x + R::of(u_bc.y) * u_ab.y)
-        .abs()
-        .stored();
-    let cos_c = (R::of(u_ca.x) * u_bc.x + R::of(u_ca.y) * u_bc.y)
-        .abs()
-        .stored();
-    let cos_a = (R::of(u_ca.x) * u_ab.x + R::of(u_ab.y) * u_ca.y)
-        .abs()
-        .stored();
+    let (u_ab_x, u_ab_y) = ((R::of(ab_x) / ab).stored(), (R::of(ab_y) / ab).stored());
+    let (u_bc_x, u_bc_y) = ((R::of(bc_x) / bc).stored(), R::of(bc_y) / bc);
+    let (u_ca_x, u_ca_y) = ((R::of(ca_x) / ca).stored(), R::of(ca_y) / ca);
+    let cos_b = (u_bc_y * u_ab_y + R::of(u_bc_x) * u_ab_x).stored().abs();
+    let cos_c = (u_ca_y * u_bc_y + R::of(u_ca_x) * u_bc_x).stored().abs();
+    let cos_a = (R::of(u_ab_y) * u_ca_y + R::of(u_ca_x) * u_ab_x).abs();
     let mut min_cos = cos_a;
-    if cos_c <= cos_b {
-        if cos_c < min_cos {
-            min_cos = cos_c;
+    if !(cos_c > cos_b) {
+        if !(min_cos <= cos_c) {
+            min_cos = R::of(cos_c);
         }
-    } else if cos_b < min_cos {
-        min_cos = cos_b;
+    } else if !(min_cos <= cos_b) {
+        min_cos = R::of(cos_b);
     }
 
-    let m_ab = Point {
-        x: ((R::of(a.x) + b.x) * 0.5).stored(),
-        y: ((R::of(a.y) + b.y) * 0.5).stored(),
+    let midpoint = |p: Point, q: Point| ((R::of(p.x) + q.x) * 0.5, (R::of(p.y) + q.y) * 0.5);
+    let edge = |(mid_x, mid_y): (R, R), u_x: f64, u_y: R| Edge {
+        mid_x,
+        mid_y: mid_y.stored(),
+        u_x,
+        u_y,
     };
-    let m_bc = Point {
-        x: ((R::of(c.x) + b.x) * 0.5).stored(),
-        y: ((R::of(c.y) + b.y) * 0.5).stored(),
-    };
-    let m_ca = Point {
-        x: ((R::of(c.x) + a.x) * 0.5).stored(),
-        y: ((R::of(c.y) + a.y) * 0.5).stored(),
-    };
-    let solved = if cos_b == min_cos {
-        if ca <= ab {
-            bisector_intersection::<R>(m_ca, u_ca, m_ab, u_ab)
+    let stored = |(mid_x, mid_y): (R, R)| (R::of(mid_x.stored()), mid_y);
+    let solved = if min_cos == cos_b {
+        let e_ab = edge(midpoint(a, b), u_ab_x, R::of(u_ab_y));
+        let e_ca = edge(stored(midpoint(c, a)), u_ca_x, u_ca_y);
+        if !(R::of(ab) < ca) {
+            bisector_intersection(e_ca, e_ab)
         } else {
-            bisector_intersection::<R>(m_ab, u_ab, m_ca, u_ca)
+            bisector_intersection(e_ab, e_ca)
         }
-    } else if cos_c == min_cos {
-        if bc <= ab {
-            bisector_intersection::<R>(m_bc, u_bc, m_ab, u_ab)
+    } else if min_cos == cos_c {
+        let e_ab = edge(stored(midpoint(a, b)), u_ab_x, R::of(u_ab_y));
+        let e_bc = edge(stored(midpoint(c, b)), u_bc_x, u_bc_y);
+        if !(ab < bc) {
+            bisector_intersection(e_bc, e_ab)
         } else {
-            bisector_intersection::<R>(m_ab, u_ab, m_bc, u_bc)
+            bisector_intersection(e_ab, e_bc)
         }
-    } else if bc <= ca {
-        bisector_intersection::<R>(m_bc, u_bc, m_ca, u_ca)
     } else {
-        bisector_intersection::<R>(m_ca, u_ca, m_bc, u_bc)
+        let e_ca = edge(midpoint(c, a), u_ca_x, u_ca_y);
+        let e_bc = edge(stored(midpoint(c, b)), u_bc_x, u_bc_y);
+        if !(ca < bc) {
+            bisector_intersection(e_bc, e_ca)
+        } else {
+            bisector_intersection(e_ca, e_bc)
+        }
     };
     if let Some(center) = solved {
         return (true, center, dist2::<R>(a, center).stored());
@@ -164,14 +161,14 @@ pub(crate) fn circumcircle_3pts<R: Real>(a: Point, b: Point, c: Point) -> (bool,
     let my = (R::of(sum_y) * 0.5).stored();
     let dx = (R::of(mx) - c.x).stored();
     let dy = (R::of(my) - c.y).stored();
-    let den = (R::of(dy) * u_ab.x + R::of(dx) * -u_ab.y).stored();
+    let den = (R::of(dy) * u_ab_x + R::of(dx) * -u_ab_y).stored();
     let den = (R::of(den) + den).stored();
     if den > ZERO || den < -ZERO {
         let h2 = (R::of(ab) * ab * 0.25).stored();
         let t = ((R::of(h2) - (R::of(dy) * dy + R::of(dx) * dx)) / den).stored();
         let center = Point {
-            x: (R::of(mx) + R::of(-u_ab.y) * t).stored(),
-            y: (R::of(my) + R::of(t) * u_ab.x).stored(),
+            x: (R::of(mx) + R::of(-u_ab_y) * t).stored(),
+            y: (R::of(my) + R::of(t) * u_ab_x).stored(),
         };
         return (true, center, (R::of(t) * t + h2).stored());
     }
