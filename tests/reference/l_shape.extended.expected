@@ -1,0 +1,24 @@
+compute
+loops 1
+loop 0 curves 7
+line 3 4 3 9
+line 3 9 1 9
+line 1 9 1 1
+line 1 1 9 1
+line 9 1 9 3
+line 9 3 4 3
+arc 4 3 3 4 4 4 1
+compute
+loops 1
+loop 0 curves 11
+line 11.5 4 11.5 0
+arc 11.5 0 10 -1.5 10 0 1
+line 10 -1.5 0 -1.5
+arc 0 -1.5 -1.5 0 0 0 1
+line -1.5 0 -1.5 10
+arc -1.5 10 0 11.5 0 10 1
+line 0 11.5 4 11.5
+arc 4 11.5 5.5 10 4 10 1
+line 5.5 10 5.5 5.5
+line 5.5 5.5 10 5.5
+arc 10 5.5 11.5 4 10 4 1

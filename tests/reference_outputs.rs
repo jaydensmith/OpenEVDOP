@@ -1,5 +1,5 @@
-//! Replays tests/reference/*.script and compares the offsets with the recorded reference output
-//! (*.expected).
+//! Replays tests/reference/*.script and compares the offsets with the recorded reference output:
+//! *.expected for `Arithmetic::Double`, *.extended.expected for `Arithmetic::Extended`.
 //!
 //! Script lines: `P left right radius recover_arcs apx_arcs depletion tolerance`,
 //! `L xs ys xe ye`, `A xs ys xe ye xc yc clockwise`, `R` (reset input), `C` (compute and dump).
@@ -9,6 +9,32 @@ use std::fs;
 use std::path::Path;
 
 const REFERENCE_DIR: &str = "tests/reference";
+const ARITHMETICS: [Arithmetic; 2] = [Arithmetic::Double, Arithmetic::Extended];
+
+fn reference_path(name: &str, arithmetic: Arithmetic) -> std::path::PathBuf {
+    let suffix = match arithmetic {
+        Arithmetic::Double => "expected",
+        Arithmetic::Extended => "extended.expected",
+    };
+    Path::new(REFERENCE_DIR).join(format!("{name}.{suffix}"))
+}
+
+fn script_names() -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(REFERENCE_DIR)
+        .expect("tests/reference exists")
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|x| x == "script"))
+        .map(|p| p.file_stem().unwrap().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    assert!(!names.is_empty(), "no reference scripts found");
+    names
+}
+
+fn read_reference(name: &str, arithmetic: Arithmetic) -> String {
+    let path = reference_path(name, arithmetic);
+    fs::read_to_string(&path).unwrap_or_else(|_| panic!("missing {}", path.display()))
+}
 
 fn parse_bool(token: &str) -> bool {
     token != "0"
@@ -53,7 +79,7 @@ fn dump(v: &Offsetter, out: &mut String) {
     }
 }
 
-fn replay(script: &str) -> String {
+fn replay(script: &str, arithmetic: Arithmetic) -> String {
     let mut v = Offsetter::new();
     let mut out = String::new();
     for line in script.lines() {
@@ -69,7 +95,7 @@ fn replay(script: &str) -> String {
                     apx_arcs: n[4],
                     depletion: n[5],
                     tolerance: n[6],
-                    arithmetic: Arithmetic::Double,
+                    arithmetic,
                 };
             }
             Some("L") => {
@@ -138,35 +164,50 @@ fn compare(expected: &str, actual: &str) -> Vec<String> {
 
 #[test]
 fn matches_reference_outputs() {
-    let mut scripts: Vec<_> = fs::read_dir(REFERENCE_DIR)
-        .expect("tests/reference exists")
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|x| x == "script"))
-        .collect();
-    scripts.sort();
-    assert!(!scripts.is_empty(), "no reference scripts found");
     let mut failed = Vec::new();
-    for script in &scripts {
-        let name = script.file_stem().unwrap().to_string_lossy().into_owned();
-        let reference = Path::new(REFERENCE_DIR).join(format!("{name}.expected"));
-        let expected = fs::read_to_string(&reference)
-            .unwrap_or_else(|_| panic!("missing {}", reference.display()));
-        let actual = replay(&fs::read_to_string(script).unwrap());
-        let diffs = compare(&expected, &actual);
-        println!(
-            "{name}: {} lines, {} mismatches",
-            expected.lines().count(),
-            diffs.len()
-        );
-        for d in diffs.iter().take(10) {
-            println!("  {d}");
-        }
-        if !diffs.is_empty() {
-            failed.push(name);
+    for arithmetic in ARITHMETICS {
+        for name in script_names() {
+            let expected = read_reference(&name, arithmetic);
+            let script = Path::new(REFERENCE_DIR).join(format!("{name}.script"));
+            let actual = replay(&fs::read_to_string(script).unwrap(), arithmetic);
+            let diffs = compare(&expected, &actual);
+            println!(
+                "{name} ({arithmetic:?}): {} lines, {} mismatches",
+                expected.lines().count(),
+                diffs.len()
+            );
+            for d in diffs.iter().take(10) {
+                println!("  {d}");
+            }
+            if !diffs.is_empty() {
+                failed.push(format!("{name} ({arithmetic:?})"));
+            }
         }
     }
     assert!(
         failed.is_empty(),
         "scripts differing from the reference: {failed:?}"
+    );
+}
+
+#[test]
+fn extended_differs_from_double() {
+    let mut differing = Vec::new();
+    for name in script_names() {
+        let diffs = compare(
+            &read_reference(&name, Arithmetic::Double),
+            &read_reference(&name, Arithmetic::Extended),
+        );
+        println!("{name}: {} lines differ between the modes", diffs.len());
+        for d in diffs.iter().take(3) {
+            println!("  {d}");
+        }
+        if !diffs.is_empty() {
+            differing.push(name);
+        }
+    }
+    assert!(
+        !differing.is_empty(),
+        "no reference script tells the arithmetic modes apart"
     );
 }
