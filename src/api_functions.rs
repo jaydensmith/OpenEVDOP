@@ -1,5 +1,6 @@
 use crate::consts::*;
 use crate::error::OffsetError;
+use crate::real::Real;
 use crate::state::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,7 +24,7 @@ pub enum OffsetCurve {
     },
 }
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn api_add_seg(&mut self, xs: f64, ys: f64, xe: f64, ye: f64) {
         let i1 = self.store_pnt(xs, ys);
         let i2 = self.store_pnt(xe, ye);
@@ -90,8 +91,8 @@ impl Engine {
 
     fn unscale(&self, x: f64, y: f64) -> (f64, f64) {
         (
-            x / self.scale_factor + self.shift_x,
-            y / self.scale_factor + self.shift_y,
+            (R::of(x) / self.scale_factor + self.shift_x).stored(),
+            (R::of(y) / self.scale_factor + self.shift_y).stored(),
         )
     }
 
@@ -111,8 +112,11 @@ impl Engine {
     }
 
     fn offset_curve(&self, elem: OffsetElem, next: OffsetElem) -> Option<OffsetCurve> {
-        let (dx, dy) = (next.x - elem.x, next.y - elem.y);
-        if (dx * dx + dy * dy).sqrt() <= ZERO {
+        let (dx, dy) = (
+            (R::of(next.x) - elem.x).stored(),
+            (R::of(next.y) - elem.y).stored(),
+        );
+        if (R::of(dx) * dx + R::of(dy) * dy).sqrt() <= ZERO {
             return None;
         }
         let start = self.unscale(elem.x, elem.y);

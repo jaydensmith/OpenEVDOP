@@ -1,4 +1,5 @@
 use crate::consts::*;
+use crate::real::Real;
 use crate::state::*;
 
 /// (e_l, e_r, n_l, n_r): outermost new edges and nodes created along the conflict boundary.
@@ -26,7 +27,7 @@ fn sign_closed_lower(v: f64) -> i32 {
     }
 }
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn reset_node_status_rec(&mut self, mut e: usize, mut n: usize) {
         loop {
             let k = self.other_node(e, n);
@@ -99,21 +100,21 @@ impl Engine {
         let u = self.pnts[s.i1];
         let dir_x = s.b;
         let dir_y = -s.a;
-        let t0 = (p.x - u.x) * dir_x + (p.y - u.y) * dir_y;
-        let s2 = ((n2.x - u.x) * dir_x + (n2.y - u.y) * dir_y) - t0;
-        let s1 = ((n1.x - u.x) * dir_x + (n1.y - u.y) * dir_y) - t0;
+        let t0 = ((R::of(p.x) - u.x) * dir_x + (R::of(p.y) - u.y) * dir_y).stored();
+        let s2 = ((R::of(n2.x) - u.x) * dir_x + (R::of(n2.y) - u.y) * dir_y - t0).stored();
+        let s1 = ((R::of(n1.x) - u.x) * dir_x + (R::of(n1.y) - u.y) * dir_y - t0).stored();
         let prod = sign_open_lower(s1) * sign_closed_lower(s2);
         if prod >= 0 && (prod != 0 || n1.r <= ZERO || n2.r <= ZERO) {
             return;
         }
-        let h = (s.a * p.x + p.y * s.b + s.c) * 0.5;
+        let h = ((R::of(s.a) * p.x + R::of(p.y) * s.b + s.c) * 0.5).stored();
         if prod >= 0 && (ZERO < h || h < -ZERO) {
             return;
         }
-        let fx = h * s.a;
-        let fy = h * s.b;
+        let fx = (R::of(h) * s.a).stored();
+        let fy = (R::of(h) * s.b).stored();
         let r = if h < 0.0 { -h } else { h };
-        let n = self.store_node(p.x - fx, p.y - fy, r);
+        let n = self.store_node((R::of(p.x) - fx).stored(), (R::of(p.y) - fy).stored(), r);
         self.split_edge(e, n, false);
     }
 

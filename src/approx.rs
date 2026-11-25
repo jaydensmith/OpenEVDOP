@@ -1,9 +1,10 @@
 use crate::consts::*;
+use crate::real::Real;
 use crate::state::*;
 use std::f64::consts::TAU;
-use x87_extended::double::{acos, atan2, cos, sin};
+use x87_extended::double::{acos, cos, sin};
 
-impl Engine {
+impl<R: Real> Engine<R> {
     /// Replaces every arc by a circumscribed polygonal chain whose deviation from the arc is at
     /// most `apx_abs` (in input units); the arcs stay addressable as `num_apx_arcs` records.
     pub(crate) fn approx_arcs(&mut self, apx_abs: f64) {
@@ -15,7 +16,7 @@ impl Engine {
         let mut apx_abs = apx_abs;
         if self.data_scaled {
             debug_assert!(self.scale_factor > ZERO, "gt(scale_factor, ZERO)");
-            apx_abs *= self.scale_factor;
+            apx_abs = (R::of(apx_abs) * self.scale_factor).stored();
         }
 
         let mut vertices: Vec<(f64, f64)> = Vec::new();
@@ -32,41 +33,48 @@ impl Engine {
                 (arc.i2, arc.i1)
             };
 
-            let mut a1 = atan2(p1.y - cy, p1.x - cx);
-            let mut a2 = atan2(p2.y - cy, p2.x - cx);
+            let angle_of = |p: Pnt| {
+                let (y, x) = ((R::of(p.y) - cy).stored(), (R::of(p.x) - cx).stored());
+                R::of(y).atan2(R::of(x)).stored()
+            };
+            let mut a1 = angle_of(p1);
+            let mut a2 = angle_of(p2);
             if 0.0 > a1 {
-                a1 += TAU;
+                a1 = (R::of(a1) + TAU).stored();
             }
             if 0.0 > a2 {
-                a2 += TAU;
+                a2 = (R::of(a2) + TAU).stored();
             }
             if a1 > a2 {
-                a2 += TAU;
+                a2 = (R::of(a2) + TAU).stored();
             }
 
-            let max_incr = acos(r / (r + apx_abs));
+            let max_incr = acos((R::of(r) / (R::of(r) + apx_abs)).stored());
             debug_assert!(max_incr > ZERO, "gt(max_incr, ZERO)");
-            let sweep = a2 - a1;
-            let pieces = sweep / (max_incr + max_incr);
-            let mut number = pieces as i32;
+            let sweep = (R::of(a2) - a1).stored();
+            let pieces = (R::of(sweep) / (R::of(max_incr) + max_incr)).stored();
+            let mut number = R::of(pieces).truncate();
             if f64::from(number) != pieces {
                 number += 1;
             }
             debug_assert!(number > 0, "number > 0");
-            let mut incr = sweep / f64::from(number);
-            let half = incr * 0.5;
-            let radius = r / cos(half);
+            let mut incr = (R::of(sweep) / f64::from(number)).stored();
+            let half = (R::of(incr) * 0.5).stored();
+            let radius = (R::of(r) / cos(half)).stored();
             let mut angle = if arc.ccw {
-                half + a1
+                (R::of(half) + a1).stored()
             } else {
                 incr = -incr;
-                a2 - half
+                (R::of(a2) - half).stored()
             };
 
             vertices.clear();
             for _ in 0..number {
-                vertices.push((cos(angle) * radius + cx, sin(angle) * radius + cy));
-                angle += incr;
+                vertices.push((
+                    (R::of(cos(angle)) * radius + cx).stored(),
+                    (R::of(sin(angle)) * radius + cy).stored(),
+                ));
+                angle = (R::of(angle) + incr).stored();
             }
 
             let mut prev = start;

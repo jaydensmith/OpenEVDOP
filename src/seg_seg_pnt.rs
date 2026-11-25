@@ -1,8 +1,9 @@
 use crate::consts::*;
 use crate::numerics::{QuadRoots, Qualification, exact_sign, solve_quadratic};
+use crate::real::Real;
 use crate::state::*;
 
-impl Engine {
+impl<R: Real> Engine<R> {
     /// Orients the line of segment `m` so that `pk` (or, if `pk` lies on the
     /// line, the reference node or segment `other`) is on its positive side.
     fn orient_seg_line(
@@ -14,7 +15,7 @@ impl Engine {
     ) -> (f64, f64, f64) {
         let seg = self.segs[m];
         let (a, b, c) = (seg.a, seg.b, seg.c);
-        let value = |p: Point| p.x * a + p.y * b + c;
+        let value = |p: Point| (R::of(p.x) * a + R::of(p.y) * b + c).stored();
         let d = value(pk);
         let flip = if d > ZERO || d < -ZERO {
             d < 0.0
@@ -85,23 +86,23 @@ impl Engine {
     ) -> bool {
         let si = self.segs[i];
         let sj = self.segs[j];
-        let d = pk.x * sj.a + pk.y * sj.b + sj.c;
+        let d = (R::of(pk.x) * sj.a + R::of(pk.y) * sj.b + sj.c).stored();
         if (-ZERO..=ZERO).contains(&d) {
             return false;
         }
-        let q = sj.b * si.b + sj.a * si.a;
+        let q = (R::of(sj.b) * si.b + R::of(sj.a) * si.a).stored();
         let mut roots = [0.0; 2];
         let mut count = 0;
         if q > ZERO || q < -ZERO {
             let s = f64::from(exact_sign(d));
-            let den1 = s + q;
+            let den1 = (R::of(s) + q).stored();
             if den1 > ZERO || den1 < -ZERO {
-                roots[0] = -(d / den1);
+                roots[0] = (-(R::of(d) / den1)).stored();
                 count = 1;
             }
-            let den2 = s - q;
+            let den2 = (R::of(s) - q).stored();
             if den2 > ZERO || den2 < -ZERO {
-                roots[count] = d / den2;
+                roots[count] = (R::of(d) / den2).stored();
                 count += 1;
             }
         } else {
@@ -109,8 +110,8 @@ impl Engine {
             count = 2;
         }
         let at = |t: f64| Point {
-            x: t * si.a + pk.x,
-            y: si.b * t + pk.y,
+            x: (R::of(t) * si.a + pk.x).stored(),
+            y: (R::of(si.b) * t + pk.y).stored(),
         };
         let t = match count {
             2 => {
@@ -167,18 +168,18 @@ impl Engine {
         else {
             return false;
         };
-        let wx = p.x - pk.x;
-        let wy = p.y - pk.y;
-        let dp = (p.y * bi + p.x * ai) + ci;
-        let q = ai * d.x + bi * d.y;
-        let coef_a = (d.x * d.x + d.y * d.y) - q * q;
-        let coef_b = ((wy * d.y + wx * d.x) - q * dp) * 2.0;
-        let coef_c = (wy * wy + wx * wx) - dp * dp;
+        let wx = (R::of(p.x) - pk.x).stored();
+        let wy = (R::of(p.y) - pk.y).stored();
+        let dp = (R::of(p.y) * bi + R::of(p.x) * ai + ci).stored();
+        let q = (R::of(ai) * d.x + R::of(bi) * d.y).stored();
+        let coef_a = (R::of(d.x) * d.x + R::of(d.y) * d.y - R::of(q) * q).stored();
+        let coef_b = ((R::of(wy) * d.y + R::of(wx) * d.x - R::of(q) * dp) * 2.0).stored();
+        let coef_c = (R::of(wy) * wy + R::of(wx) * wx - R::of(dp) * dp).stored();
         let at = |t: f64| Point {
-            x: d.x * t + p.x,
-            y: t * d.y + p.y,
+            x: (R::of(d.x) * t + p.x).stored(),
+            y: (R::of(t) * d.y + p.y).stored(),
         };
-        let center = match solve_quadratic(coef_a, coef_b, coef_c) {
+        let center = match solve_quadratic::<R>(coef_a, coef_b, coef_c) {
             QuadRoots::NoRoot => return false,
             QuadRoots::One(t) => at(t),
             QuadRoots::Two(t1, t2) => {
@@ -209,7 +210,9 @@ impl Engine {
             }
         };
         out.center = center;
-        out.r = (center.x * ai + center.y * bi + ci).abs();
+        out.r = (R::of(center.x) * ai + R::of(center.y) * bi + ci)
+            .abs()
+            .stored();
         true
     }
 

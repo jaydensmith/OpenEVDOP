@@ -1,8 +1,9 @@
+use crate::real::Real;
 use crate::state::*;
 
 const CLEARANCE_TOLERANCE: f64 = 1e-9;
 
-impl Engine {
+impl<R: Real> Engine<R> {
     fn site_distance(&self, site: usize, site_type: SiteType, x: f64, y: f64) -> Option<f64> {
         match site_type {
             SiteType::Pnt => {
@@ -57,7 +58,7 @@ impl Engine {
 mod tests {
     use super::*;
 
-    fn square_engine() -> Engine {
+    fn square_engine() -> Engine<f64> {
         let mut v = Engine::new();
         let sq = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)];
         for i in 0..4 {

@@ -1,5 +1,6 @@
 use crate::consts::*;
 use crate::numerics::solve_2x2;
+use crate::real::Real;
 use crate::state::*;
 
 #[derive(Debug, Clone, Copy)]
@@ -10,8 +11,8 @@ struct Line {
 }
 
 impl Line {
-    fn value(self, p: Point) -> f64 {
-        p.x * self.a + p.y * self.b + self.c
+    fn value<R: Real>(self, p: Point) -> R {
+        R::of(p.x) * self.a + R::of(p.y) * self.b + self.c
     }
 
     fn flipped(self) -> Line {
@@ -29,12 +30,12 @@ impl Line {
         }
     }
 
-    fn cos(self, other: Line) -> f64 {
-        other.a * self.a + other.b * self.b
+    fn cos<R: Real>(self, other: Line) -> R {
+        R::of(other.a) * self.a + R::of(other.b) * self.b
     }
 }
 
-impl Engine {
+impl<R: Real> Engine<R> {
     fn seg_line(&self, s: usize) -> Line {
         let seg = self.segs[s];
         Line {
@@ -72,11 +73,11 @@ impl Engine {
         } else {
             (node_a, node_b)
         };
-        let d1 = line.value(first);
+        let d1 = line.value::<R>(first).stored();
         let flip = if nonzero(d1) {
             d1 < 0.0
         } else {
-            let d2 = line.value(second);
+            let d2 = line.value::<R>(second).stored();
             if nonzero(d2) {
                 d2 < 0.0
             } else {
@@ -89,8 +90,8 @@ impl Engine {
 
     fn orient_by_endpoints(&mut self, line: Line, others: [usize; 2], fallback: f64) -> bool {
         for s in others {
-            let e1 = line.value(self.seg_start(s));
-            let e2 = line.value(self.seg_end(s));
+            let e1 = line.value::<R>(self.seg_start(s)).stored();
+            let e2 = line.value::<R>(self.seg_end(s)).stored();
             if e1 < 0.0 && e2 < 0.0 {
                 return true;
             }
@@ -199,17 +200,21 @@ impl Engine {
         let share_ik = self.segs_share_endpoint(i, k);
         let share_jk = self.segs_share_endpoint(j, k);
         let acceptable = |s: &Self, center: Point, r: f64| {
-            !(r + ZERO_MAX < r_lo || r_hi + ZERO_MAX < r)
+            !(R::of(r) + ZERO_MAX < r_lo || R::of(r_hi) + ZERO_MAX < r)
                 && s.is_pnt_between_nodes(e, center.x, center.y, false, ZERO_MAX)
         };
         let mut previous: Option<(Point, f64)> = None;
 
         loop {
             let mut near_singular: Option<(Point, f64)> = None;
-            let a = [[li.a - lj.a, li.b - lj.b], [li.a - lk.a, li.b - lk.b]];
-            if let Some((x, pivot)) = solve_2x2(a, [lj.c - li.c, lk.c - li.c]) {
+            let a = [
+                [(R::of(li.a) - lj.a).stored(), (R::of(li.b) - lj.b).stored()],
+                [(R::of(li.a) - lk.a).stored(), (R::of(li.b) - lk.b).stored()],
+            ];
+            let rhs = [(R::of(lj.c) - li.c).stored(), (R::of(lk.c) - li.c).stored()];
+            if let Some((x, pivot)) = solve_2x2::<R>(a, rhs) {
                 let center = Point { x: x[0], y: x[1] };
-                let r = li.value(center).abs();
+                let r = li.value::<R>(center).abs().stored();
                 out.center = center;
                 out.r = r;
                 if acceptable(self, center, r) {
@@ -220,9 +225,9 @@ impl Engine {
                 }
             }
 
-            let c_ik = lk.cos(li);
-            let c_ij = lj.cos(li);
-            let c_jk = lk.cos(lj);
+            let c_ik = lk.cos::<R>(li).stored();
+            let c_ij = lj.cos::<R>(li).stored();
+            let c_jk = lk.cos::<R>(lj).stored();
             let (v_ik, v_ij, v_jk, max) = match (share_ij, share_ik, share_jk) {
                 (false, false, true) => (c_ik, c_ij, 1.0, 1.0),
                 (false, true, _) => (1.0, c_ij, if share_jk { -1.0 } else { c_jk }, 1.0),
@@ -276,12 +281,13 @@ impl Engine {
                 };
             };
             let a = [[d1.x, -d2.x], [d1.y, -d2.y]];
-            if let Some((x, _)) = solve_2x2(a, [p2.x - p1.x, p2.y - p1.y]) {
+            let rhs = [(R::of(p2.x) - p1.x).stored(), (R::of(p2.y) - p1.y).stored()];
+            if let Some((x, _)) = solve_2x2::<R>(a, rhs) {
                 let center = Point {
-                    x: d1.x * x[0] + p1.x,
-                    y: d1.y * x[0] + p1.y,
+                    x: (R::of(d1.x) * x[0] + p1.x).stored(),
+                    y: (R::of(d1.y) * x[0] + p1.y).stored(),
                 };
-                let r = li.value(center).abs();
+                let r = li.value::<R>(center).abs().stored();
                 out.center = center;
                 out.r = r;
                 if acceptable(self, center, r) {
@@ -310,7 +316,13 @@ impl Engine {
                     }
                 }
                 Some((prev_center, prev_r)) => {
-                    let deviation = |r: f64| if r_lo <= r { r - r_hi } else { r_lo - r };
+                    let deviation = |r: f64| {
+                        if r_lo <= r {
+                            R::of(r) - r_hi
+                        } else {
+                            R::of(r_lo) - r
+                        }
+                    };
                     let keep_current = deviation(out.r) <= deviation(prev_r);
                     if !keep_current {
                         out.center = prev_center;

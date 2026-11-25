@@ -1,4 +1,5 @@
 use crate::consts::*;
+use crate::real::Real;
 use crate::state::*;
 
 const DEGENERATE_SUBDIVISIONS: f64 = 10.0;
@@ -6,14 +7,14 @@ const DEGENERATE_STEP: f64 = 0.1;
 const DEGENERATE_MAX_BUCKET: i32 = 10;
 const FIRST_REGULAR_EDGE: usize = 4;
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn get_num_edges(&self) -> usize {
         self.edges.len()
     }
 
     fn is_node_on_seg_side(&self, seg: usize, node: usize, left: bool) -> bool {
         let n = &self.nodes[node];
-        let v = self.segs[seg].signed_dist(n.x, n.y);
+        let v = self.segs[seg].signed_dist::<R>(n.x, n.y).stored();
         if left { v > 0.0 || v.is_nan() } else { v < 0.0 }
     }
 
@@ -162,7 +163,7 @@ impl Engine {
 
     fn edge_radii_degenerate(&self, e: usize) -> bool {
         let edge = &self.edges[e];
-        let du = self.nodes[edge.n1].r - self.nodes[edge.n2].r;
+        let du = (R::of(self.nodes[edge.n1].r) - self.nodes[edge.n2].r).stored();
         within_zero(du)
     }
 
@@ -192,11 +193,11 @@ impl Engine {
         let s = self.segs[seg];
         let mut a = s.a;
         let mut b = s.b;
-        let mut d = (p.x * a + p.y * b) + s.c;
+        let mut d = (R::of(p.x) * a + R::of(p.y) * b + s.c).stored();
         let far = if n2.r < n1.r { n1 } else { n2 };
         let mut du = d;
         if within_zero(du) {
-            du = s.signed_dist(far.x, far.y);
+            du = s.signed_dist::<R>(far.x, far.y).stored();
             debug_assert!(ZERO < du || du < -ZERO, "!eq(du, ZERO)");
         }
         let flip = du < 0.0;
@@ -205,27 +206,27 @@ impl Engine {
             b = -b;
             d = -d;
         }
-        let ad = a * d;
-        let fx = p.x - ad;
-        let bd = b * d;
-        let fy = p.y - bd;
+        let ad = (R::of(a) * d).stored();
+        let fx = (R::of(p.x) - ad).stored();
+        let bd = (R::of(b) * d).stored();
+        let fy = (R::of(p.y) - bd).stored();
         let na = -a;
-        let k = -(p.x * b) - na * p.y;
-        let side_far = (b * far.x + na * far.y) + k;
+        let k = (-(R::of(p.x) * b) - R::of(na) * p.y).stored();
+        let side_far = (R::of(b) * far.x + R::of(na) * far.y + k).stored();
         let sgn_far = sign_of(side_far);
 
-        let disc = ((d + d) - d) * d;
+        let disc = ((R::of(d) + d - d) * d).stored();
         let x = if disc < 0.0 {
-            ad * 0.5 + fx
+            (R::of(ad) * 0.5 + fx).stored()
         } else {
-            (ad + fx) + f64::from(sgn_far) * b * disc.sqrt()
+            (R::of(ad) + fx + R::of(f64::from(sgn_far)) * b * R::of(disc).sqrt()).stored()
         };
         let y = if disc < 0.0 {
-            bd * 0.5 + fy
+            (R::of(bd) * 0.5 + fy).stored()
         } else {
-            (bd + fy) - f64::from(sgn_far) * a * disc.sqrt()
+            (R::of(bd) + fy - R::of(f64::from(sgn_far)) * a * R::of(disc).sqrt()).stored()
         };
-        let side = (x * b + y * na) + k;
+        let side = (R::of(x) * b + R::of(y) * na + k).stored();
         let mut sgn = sign_of(side);
         if sgn != sgn_far {
             sgn = -sgn;
@@ -259,15 +260,18 @@ impl Engine {
             t2 = lo.r;
         }
         debug_assert!(t1 <= t && t < t2, "(t1 <= t) && (t < t2)");
-        let step = (t2 - t1) * DEGENERATE_STEP;
+        let step = ((R::of(t2) - t1) * DEGENERATE_STEP).stored();
         let mut k: i32 = 1;
-        let mut reach = t1 + step;
+        let mut reach = (R::of(t1) + step).stored();
         while reach < t && k <= DEGENERATE_MAX_BUCKET {
             k += 1;
-            reach = f64::from(k) * step + t1;
+            reach = (R::of(f64::from(k)) * step + t1).stored();
         }
-        let f = (f64::from(k) - 0.5) / DEGENERATE_SUBDIVISIONS;
-        ((hi.x - x1) * f + x1, (hi.y - y1) * f + y1)
+        let f = ((R::of(f64::from(k)) - 0.5) / DEGENERATE_SUBDIVISIONS).stored();
+        (
+            ((R::of(hi.x) - x1) * f + x1).stored(),
+            ((R::of(hi.y) - y1) * f + y1).stored(),
+        )
     }
 
     fn debug_assert_t_on_edge(&self, e: usize, t: f64) {
@@ -285,7 +289,10 @@ impl Engine {
         let edge = &self.edges[e];
         let n1 = &self.nodes[edge.n1];
         let n2 = &self.nodes[edge.n2];
-        ((n2.x + n1.x) * 0.5, (n2.y + n1.y) * 0.5)
+        (
+            ((R::of(n2.x) + n1.x) * 0.5).stored(),
+            ((R::of(n2.y) + n1.y) * 0.5).stored(),
+        )
     }
 
     pub(crate) fn eval_parabola_pnt(&self, e: usize, seg: usize, t: f64) -> (f64, f64) {
@@ -305,16 +312,16 @@ impl Engine {
             b = -b;
             d = -d;
         }
-        let disc = (t + t - d) * d;
+        let disc = ((R::of(t) + t - d) * d).stored();
         let x = if disc < 0.0 {
-            d * a * 0.5 + data.px
+            (R::of(d) * a * 0.5 + data.px).stored()
         } else {
-            (a * t + data.px) + sgn * b * disc.sqrt()
+            (R::of(a) * t + data.px + R::of(sgn) * b * R::of(disc).sqrt()).stored()
         };
         let y = if disc < 0.0 {
-            d * b * 0.5 + data.py
+            (R::of(d) * b * 0.5 + data.py).stored()
         } else {
-            (b * t + data.py) - sgn * a * disc.sqrt()
+            (R::of(b) * t + data.py - R::of(sgn) * a * R::of(disc).sqrt()).stored()
         };
         (x, y)
     }
@@ -332,15 +339,11 @@ impl Engine {
         let n2 = self.nodes[edge.n2];
         let p1 = self.pnts[edge.lft];
         let p2 = self.pnts[edge.rgt];
-        let dx = p1.x - p2.x;
-        let dy = p1.y - p2.y;
-        let half_dist_sq = (dx * dx + dy * dy) * 0.25;
-        let (vx, vy) = if n2.r < n1.r {
-            (n1.x - n2.x, n1.y - n2.y)
-        } else {
-            (n2.x - n1.x, n2.y - n1.y)
-        };
-        let lgth = (vy * vy + vx * vx).sqrt();
+        let dx = (R::of(p1.x) - p2.x).stored();
+        let dy = (R::of(p1.y) - p2.y).stored();
+        let half_dist_sq = ((R::of(dx) * dx + R::of(dy) * dy) * 0.25).stored();
+        let (vx, vy) = node_direction::<R>(&n1, &n2);
+        let lgth = (R::of(vy) * vy + R::of(vx) * vx).sqrt().stored();
         if within_zero(lgth) {
             self.mark_edge_degenerate(e);
             return;
@@ -348,8 +351,8 @@ impl Engine {
         self.e_data[e].pending = false;
         self.edge_flags[e].degenerate = false;
         let data = &mut self.e_data[e];
-        data.px = vx / lgth;
-        data.py = vy / lgth;
+        data.px = (R::of(vx) / lgth).stored();
+        data.py = (R::of(vy) / lgth).stored();
         data.d = half_dist_sq;
     }
 
@@ -364,16 +367,19 @@ impl Engine {
         let n2 = &self.nodes[edge.n2];
         let lo = if n1.r > n2.r { n2 } else { n1 };
         let data = &self.e_data[e];
-        let mut s0 = lo.r * lo.r - data.d;
+        let mut s0 = (R::of(lo.r) * lo.r - data.d).stored();
         if s0 < 0.0 {
             s0 = 0.0;
         }
-        let mut s1 = t * t - data.d;
+        let mut s1 = (R::of(t) * t - data.d).stored();
         if s1 < 0.0 {
             s1 = 0.0;
         }
-        let delta = s1.sqrt() - s0.sqrt();
-        (data.px * delta + lo.x, delta * data.py + lo.y)
+        let delta = (R::of(s1).sqrt() - R::of(s0).sqrt()).stored();
+        (
+            (R::of(data.px) * delta + lo.x).stored(),
+            (R::of(delta) * data.py + lo.y).stored(),
+        )
     }
 
     pub(crate) fn create_ss_bisector_data(&mut self, e: usize) {
@@ -385,11 +391,7 @@ impl Engine {
         let edge = self.edges[e];
         let n1 = self.nodes[edge.n1];
         let n2 = self.nodes[edge.n2];
-        let (vx, vy) = if n2.r < n1.r {
-            (n1.x - n2.x, n1.y - n2.y)
-        } else {
-            (n2.x - n1.x, n2.y - n1.y)
-        };
+        let (vx, vy) = node_direction::<R>(&n1, &n2);
         self.e_data[e].pending = false;
         self.edge_flags[e].degenerate = false;
         self.e_data[e].px = vx;
@@ -405,15 +407,27 @@ impl Engine {
         let edge = &self.edges[e];
         let n1 = &self.nodes[edge.n1];
         let n2 = &self.nodes[edge.n2];
-        let diff = n1.r - n2.r;
+        let diff = (R::of(n1.r) - n2.r).stored();
         debug_assert!(ZERO < diff || diff < -ZERO, "!eq(t1-t2, ZERO)");
         let (f, base) = if n2.r < n1.r {
-            ((t - n2.r) / diff, n2)
+            (((R::of(t) - n2.r) / diff).stored(), n2)
         } else {
-            ((t - n1.r) / (n2.r - n1.r), n1)
+            (((R::of(t) - n1.r) / (R::of(n2.r) - n1.r)).stored(), n1)
         };
         let data = &self.e_data[e];
-        (data.px * f + base.x, f * data.py + base.y)
+        (
+            (R::of(data.px) * f + base.x).stored(),
+            (R::of(f) * data.py + base.y).stored(),
+        )
+    }
+}
+
+/// The vector from the node of smaller clearance to the other.
+fn node_direction<R: Real>(n1: &Node, n2: &Node) -> (f64, f64) {
+    if n2.r < n1.r {
+        ((R::of(n1.x) - n2.x).stored(), (R::of(n1.y) - n2.y).stored())
+    } else {
+        ((R::of(n2.x) - n1.x).stored(), (R::of(n2.y) - n1.y).stored())
     }
 }
 

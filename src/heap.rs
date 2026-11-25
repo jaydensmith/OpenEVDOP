@@ -1,6 +1,7 @@
+use crate::real::Real;
 use crate::state::*;
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn heap_replace_top(&mut self, key: f64, value: usize) {
         let num = self.heap.len();
         let mut i = 0;

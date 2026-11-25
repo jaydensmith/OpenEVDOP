@@ -1,10 +1,11 @@
 use crate::consts::*;
 use crate::error::OffsetError;
+use crate::real::Real;
 use crate::state::*;
 
 const NO_DIST_YET: f64 = -1.0;
 
-impl Engine {
+impl<R: Real> Engine<R> {
     /// `None` after aborting the computation.
     pub(crate) fn desperate_node(
         &mut self,
@@ -15,7 +16,7 @@ impl Engine {
         self.troubles = true;
         let edge = self.edges[e];
         let (lft, rgt) = (edge.lft, edge.rgt);
-        let pnt = |v: &Engine, k: usize| Point {
+        let pnt = |v: &Engine<R>, k: usize| Point {
             x: v.pnts[k].x,
             y: v.pnts[k].y,
         };
@@ -47,7 +48,7 @@ impl Engine {
         if n.site == i {
             return 0.0;
         }
-        self.seg_clearance(s, n.x, n.y, SMALL) - n.r
+        (self.seg_clearance(s, n.x, n.y, SMALL) - n.r).stored()
     }
 
     pub(crate) fn desperate_split_pnt_edge(&mut self, i: usize, s: usize) -> usize {
@@ -78,12 +79,12 @@ impl Engine {
             (edge.n1, edge.n2)
         };
         let mut best = self.nodes[start];
-        let mut best_dist = seg.signed_dist(best.x, best.y).abs();
+        let mut best_dist = seg.signed_dist::<R>(best.x, best.y).abs().stored();
         let mut best_edge = e0;
         let mut e = e0;
         loop {
             let node = self.nodes[k];
-            let dist = seg.signed_dist(node.x, node.y).abs();
+            let dist = seg.signed_dist::<R>(node.x, node.y).abs().stored();
             if best_dist < dist {
                 best_edge = e;
                 best = node;
@@ -112,7 +113,7 @@ impl Engine {
             let e = self.loop_stack[j];
             let edge = &self.edges[e];
             for node in [self.nodes[edge.n2], self.nodes[edge.n1]] {
-                let dist = seg.signed_dist(node.x, node.y).abs();
+                let dist = seg.signed_dist::<R>(node.x, node.y).abs().stored();
                 if best_dist < dist {
                     best = (node.x, node.y, node.r);
                     best_dist = dist;
@@ -135,7 +136,7 @@ impl Engine {
 mod tests {
     use super::*;
 
-    fn square_vd() -> Engine {
+    fn square_vd() -> Engine<f64> {
         let mut v = Engine::new();
         let sq = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)];
         for i in 0..4 {

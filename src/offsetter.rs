@@ -1,6 +1,8 @@
 use crate::api_functions::{OffsetCurve, Orientation};
 use crate::error::OffsetError;
+use crate::real::Real;
 use crate::state::Engine;
+use x87_extended::Extended;
 
 const DEFAULT_OFFSET_RADIUS: f64 = 5.0;
 const DEFAULT_APX_ARCS: f64 = 0.001;
@@ -125,9 +127,27 @@ impl Offsetter {
     /// Builds the Voronoi diagram of the input and traces the offset loops; may be called again
     /// after changing parameters. On failure no offsets are reported and the input is kept.
     pub fn compute_offset(&mut self) -> Result<(), OffsetError> {
+        let result = match self.parameters.arithmetic {
+            Arithmetic::Double => self.computed::<f64>(),
+            Arithmetic::Extended => self.computed::<Extended>(),
+        };
+        match result {
+            Ok(loops) => {
+                self.loops = loops;
+                Ok(())
+            }
+            Err(error) => {
+                self.loops = Vec::new();
+                Err(error)
+            }
+        }
+    }
+
+    /// The offset loops of the input in arithmetic `R`.
+    fn computed<R: Real>(&self) -> Result<Vec<Vec<OffsetCurve>>, OffsetError> {
         let p = self.parameters;
         // The engine scales, cleans and approximates its input in place, so every run starts fresh.
-        let mut engine = Engine::new();
+        let mut engine = Engine::<R>::new();
         for element in &self.input {
             match *element {
                 InputElement::Line { start, end } => {
@@ -141,7 +161,7 @@ impl Offsetter {
                 } => engine.api_add_arc(start, end, center, ccw),
             }
         }
-        let result = engine
+        engine
             .api_compute_vd(p.recover_arcs, p.apx_arcs)
             .and_then(|()| {
                 engine.api_compute_offset(
@@ -150,12 +170,8 @@ impl Offsetter {
                     p.left_offset,
                     p.right_offset,
                 )
-            });
-        self.loops = match result {
-            Ok(()) => engine.offset_curves(),
-            Err(_) => Vec::new(),
-        };
-        result
+            })
+            .map(|()| engine.offset_curves())
     }
 
     pub fn num_offset_loops(&self) -> usize {
@@ -174,12 +190,23 @@ impl Offsetter {
         let Some(prev) = self.last_end else {
             return (start, None);
         };
-        let (dx, dy) = (start.0 - prev.0, start.1 - prev.1);
-        let gap = (dy * dy + dx * dx).sqrt();
+        let gap = match self.parameters.arithmetic {
+            Arithmetic::Double => gap::<f64>(start, prev),
+            Arithmetic::Extended => gap::<Extended>(start, prev),
+        };
         if gap <= self.parameters.tolerance && gap != 0.0 {
             (prev, Some(gap))
         } else {
             (start, None)
         }
     }
+}
+
+/// The distance from `prev` to `start` in arithmetic `R`.
+fn gap<R: Real>(start: (f64, f64), prev: (f64, f64)) -> f64 {
+    let (dx, dy) = (
+        (R::of(start.0) - prev.0).stored(),
+        (R::of(start.1) - prev.1).stored(),
+    );
+    (R::of(dy) * dy + R::of(dx) * dx).sqrt().stored()
 }

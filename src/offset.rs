@@ -1,4 +1,5 @@
 use crate::consts::*;
+use crate::real::Real;
 use crate::state::*;
 
 const FIRST_INNER_PNT: usize = 2;
@@ -10,7 +11,7 @@ enum BisectorKind {
     PntPnt,
 }
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn offset_isolated_pnts(&mut self, t: f64, dt: f64) {
         let end = self.pnts.len().saturating_sub(2);
         for i in FIRST_INNER_PNT..end {
@@ -48,21 +49,21 @@ impl Engine {
                 self.offset_loops.push(OffsetLoop {
                     start,
                     end: start + 1,
-                    dist: tt / self.scale_factor,
+                    dist: (R::of(tt) / self.scale_factor).stored(),
                 });
                 self.offset_elems.push(OffsetElem {
                     site: i,
                     kind: OffsetKind::PntArc,
-                    x: tt + p.x,
+                    x: (R::of(tt) + p.x).stored(),
                     y: p.y,
                 });
                 self.offset_elems.push(OffsetElem {
                     site: i,
                     kind: OffsetKind::PntArc,
-                    x: p.x - tt,
+                    x: (R::of(p.x) - tt).stored(),
                     y: p.y,
                 });
-                tt += dt;
+                tt = (R::of(tt) + dt).stored();
             }
         }
     }
@@ -96,7 +97,7 @@ impl Engine {
         self.offset_loops.push(OffsetLoop {
             start,
             end: start,
-            dist: t / self.scale_factor,
+            dist: (R::of(t) / self.scale_factor).stored(),
         });
 
         let mut e = e0;
@@ -144,9 +145,9 @@ impl Engine {
                 OffsetElem { site, kind, x, y }
             } else {
                 let arc = &self.arcs[apx];
-                let dx = arc.cx - x;
-                let dy = arc.cy - y;
-                let kind = if arc.r * arc.r <= dx * dx + dy * dy {
+                let dx = (R::of(arc.cx) - x).stored();
+                let dy = (R::of(arc.cy) - y).stored();
+                let kind = if R::of(arc.r) * arc.r <= R::of(dx) * dx + R::of(dy) * dy {
                     OffsetKind::ApxArcOutside
                 } else {
                     OffsetKind::ApxArcInside
@@ -195,8 +196,8 @@ impl Engine {
 
         let mut finished;
         if self.new_offset_needed {
-            self.offset_t = t * self.scale_factor;
-            self.offset_dt = self.scale_factor * dt;
+            self.offset_t = (R::of(t) * self.scale_factor).stored();
+            self.offset_dt = (R::of(self.scale_factor) * dt).stored();
             if self.max_offset <= self.offset_t || self.offset_t <= ZERO {
                 return true;
             }
@@ -210,7 +211,7 @@ impl Engine {
                 self.offset_isolated_pnts(self.offset_t, self.offset_dt);
             }
         } else {
-            self.offset_t += self.offset_dt;
+            self.offset_t = (R::of(self.offset_t) + self.offset_dt).stored();
             finished = self.max_offset <= self.offset_t;
         }
 
@@ -240,7 +241,7 @@ impl Engine {
                     self.active_edges.swap_remove(j);
                 }
             }
-            self.offset_t += self.offset_dt;
+            self.offset_t = (R::of(self.offset_t) + self.offset_dt).stored();
             finished = self.max_offset <= self.offset_t;
         }
         finished

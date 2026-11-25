@@ -1,4 +1,5 @@
 use crate::consts::*;
+use crate::real::Real;
 use crate::state::*;
 
 const BETWEEN_EPS_RELAX_FACTOR: f64 = 10.0;
@@ -13,7 +14,7 @@ fn eps_sign(v: f64) -> i32 {
     }
 }
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn get_vd_ptr(&self, i: usize, t: SiteType) -> usize {
         match t {
             SiteType::Pnt => self.pnts[i].vd_edge,
@@ -58,14 +59,14 @@ impl Engine {
     }
 
     /// |a x + b y + c| when (x, y) projects into seg's extent widened by `eps`, `large` otherwise.
-    pub(crate) fn seg_clearance(&self, seg: usize, x: f64, y: f64, eps: f64) -> f64 {
+    pub(crate) fn seg_clearance(&self, seg: usize, x: f64, y: f64, eps: f64) -> R {
         let s = &self.segs[seg];
         let p = &self.pnts[s.i1];
-        let t = (x - p.x) * s.b - (y - p.y) * s.a;
-        if s.lgth + eps < t || t < -eps {
-            self.large
+        let t = ((R::of(x) - p.x) * s.b - (R::of(y) - p.y) * s.a).stored();
+        if R::of(s.lgth) + eps < t || t < -eps {
+            R::of(self.large)
         } else {
-            s.signed_dist(x, y).abs()
+            s.signed_dist::<R>(x, y).abs()
         }
     }
 
@@ -84,7 +85,7 @@ impl Engine {
             self.between_eps = SMALL;
             return true;
         }
-        self.between_eps *= BETWEEN_EPS_RELAX_FACTOR;
+        self.between_eps = (R::of(self.between_eps) * BETWEEN_EPS_RELAX_FACTOR).stored();
         self.between_eps <= ZERO_MAX
     }
 
@@ -123,7 +124,10 @@ impl Engine {
                 continue;
             }
             if node.site == NIL {
-                return (k, self.seg_clearance(seg, node.x, node.y, SMALL) - node.r);
+                return (
+                    k,
+                    (self.seg_clearance(seg, node.x, node.y, SMALL) - node.r).stored(),
+                );
             }
             let e1 = self.ccw_edge(e, k);
             let e2 = self.ccw_edge(e1, k);
@@ -165,7 +169,7 @@ impl Engine {
             let cur_shared = shared_by_both(e);
             let node = self.nodes[k];
             if node.site == NIL {
-                let dist = self.seg_clearance(seg, node.x, node.y, SMALL) - node.r;
+                let dist = (self.seg_clearance(seg, node.x, node.y, SMALL) - node.r).stored();
                 if dist < best_dist {
                     best = k;
                     best_dist = dist;
@@ -224,7 +228,7 @@ impl Engine {
 
         let p = self.pnts[i];
         let (mut a, mut b) = (s.a, s.b);
-        let d = p.x * a + p.y * b + s.c;
+        let d = (R::of(p.x) * a + R::of(p.y) * b + s.c).stored();
         if (-ZERO..=ZERO).contains(&d) {
             if self.check_site_intersections(i0, SiteType::Seg) {
                 self.restart = true;
@@ -236,9 +240,9 @@ impl Engine {
         } else {
             a = -a;
         }
-        let c = -(b * p.x) - a * p.y;
+        let c = (-(R::of(b) * p.x) - R::of(a) * p.y).stored();
         let dir = Point { x: -a, y: b };
-        let side = |node: &Node| eps_sign(node.x * b + node.y * a + c);
+        let side = |node: &Node| eps_sign((R::of(node.x) * b + R::of(node.y) * a + c).stored());
 
         let (mut k, k_prev) = if self.is_rgt_site(e0, i, t) {
             (self.edges[e0].n2, self.edges[e0].n1)
@@ -327,7 +331,7 @@ impl Engine {
             } else if s.i2 == site {
                 (-s.a, -s.b, -s.c)
             } else {
-                let d = q.y * s.b + q.x * s.a + s.c;
+                let d = (R::of(q.y) * s.b + R::of(q.x) * s.a + s.c).stored();
                 if (-ZERO..=ZERO).contains(&d) {
                     if self.check_site_intersections(i0, SiteType::Seg) {
                         self.restart = true;
@@ -336,13 +340,13 @@ impl Engine {
                 }
                 let (a1, b1) = if d < 0.0 { (-s.a, -s.b) } else { (s.a, s.b) };
                 let (na, nb) = (b1, -a1);
-                (na, nb, -(na * q.x) - q.y * nb)
+                (na, nb, (-(R::of(na) * q.x) - R::of(q.y) * nb).stored())
             };
 
             let n1 = self.nodes[edge.n1];
             let n2 = self.nodes[edge.n2];
-            let side2 = eps_sign(n2.x * a + n2.y * b + c);
-            let side1 = eps_sign(n1.x * a + n1.y * b + c);
+            let side2 = eps_sign((R::of(n2.x) * a + R::of(n2.y) * b + c).stored());
+            let side1 = eps_sign((R::of(n1.x) * a + R::of(n1.y) * b + c).stored());
             if side1 == -side2
                 && ZERO < n1.r
                 && ZERO < n2.r

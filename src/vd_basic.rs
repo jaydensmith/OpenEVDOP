@@ -1,7 +1,8 @@
 use crate::consts::*;
+use crate::real::Real;
 use crate::state::*;
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn ccw_edge(&self, e: usize, n: usize) -> usize {
         let edge = &self.edges[e];
         debug_assert!(
@@ -73,7 +74,7 @@ impl Engine {
     pub(crate) fn nodes_r2_to_r(&mut self) {
         for node in &mut self.nodes {
             debug_assert!(node.r >= 0.0, "nodes[i].r2 >= 0.0");
-            node.r = node.r.sqrt();
+            node.r = R::of(node.r).sqrt().stored();
         }
         self.nodes_store_r2 = false;
     }
@@ -188,12 +189,12 @@ impl Engine {
         let (_, c1, r1) = self.pnt_pnt_pnt_node(1, 2, j);
         let (_, c2, r2) = self.pnt_pnt_pnt_node(2, i, j);
         let (_, c3, r3) = self.pnt_pnt_pnt_node(0, 2, i);
-        let far = FAR_NODE_DIST2.sqrt();
+        let far = R::of(FAR_NODE_DIST2).sqrt().stored();
 
-        self.store_node(c0.x - far, c0.y, 0.0);
-        self.store_node(c1.x, c1.y + far, 0.0);
-        self.store_node(c2.x + far, c2.y, 0.0);
-        self.store_node(c3.x, c3.y - far, 0.0);
+        self.store_node((R::of(c0.x) - far).stored(), c0.y, 0.0);
+        self.store_node(c1.x, (R::of(c1.y) + far).stored(), 0.0);
+        self.store_node((R::of(c2.x) + far).stored(), c2.y, 0.0);
+        self.store_node(c3.x, (R::of(c3.y) - far).stored(), 0.0);
         self.store_node(c0.x, c0.y, r0);
         self.store_node(c1.x, c1.y, r1);
         self.store_node(c2.x, c2.y, r2);

@@ -1,6 +1,7 @@
 use crate::consts::*;
 use crate::data::dist;
 use crate::numerics::{RootCurve, RootTarget};
+use crate::real::Real;
 use crate::state::*;
 
 const QSORT_CUTOFF: isize = 8;
@@ -132,7 +133,7 @@ fn sign_eps(v: f64, eps: f64) -> i32 {
     }
 }
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn insert_pnt_pnt_mid_nodes(&mut self) {
         let num_edges = self.edges.len();
         for e in 0..num_edges {
@@ -147,18 +148,20 @@ impl Engine {
             }
             let pi = self.pnts[edge.lft];
             let pj = self.pnts[edge.rgt];
-            let dx = pi.x - pj.x;
+            let dx = (R::of(pi.x) - pj.x).stored();
             let n1 = self.nodes[edge.n1];
-            let det1 = (pj.x - n1.x) * (pj.y - pi.y) + (pj.y - n1.y) * dx;
+            let det1 =
+                ((R::of(pj.x) - n1.x) * (R::of(pj.y) - pi.y) + (R::of(pj.y) - n1.y) * dx).stored();
             if !(det1 < 0.0) {
                 continue;
             }
             let n2 = self.nodes[edge.n2];
-            let det2 = (pj.x - n2.x) * (pj.y - pi.y) + (pj.y - n2.y) * dx;
+            let det2 =
+                ((R::of(pj.x) - n2.x) * (R::of(pj.y) - pi.y) + (R::of(pj.y) - n2.y) * dx).stored();
             if 0.0 < det2 {
-                let mx = (pj.x + pi.x) * 0.5;
-                let my = (pi.y + pj.y) * 0.5;
-                let r = dist(dx, pi.y - pj.y) * 0.5;
+                let mx = ((R::of(pj.x) + pi.x) * 0.5).stored();
+                let my = ((R::of(pi.y) + pj.y) * 0.5).stored();
+                let r = (dist::<R>(dx, (R::of(pi.y) - pj.y).stored()) * 0.5).stored();
                 let node = self.store_node(mx, my, r);
                 self.split_edge(e, node, false);
             }
@@ -187,11 +190,11 @@ impl Engine {
                     (edge.lft, edge.rgt)
                 };
                 let q = self.pnts[hi];
-                let dv = q.y - self.pnts[lo].y;
-                let du = self.pnts[lo].x - q.x;
-                let sp = (q.x - x) * dv + (q.y - y) * du;
-                let v1 = ((q.x - n1.x) * dv + (q.y - n1.y) * du) - sp;
-                let v2 = ((q.y - n2.y) * du + (q.x - n2.x) * dv) - sp;
+                let dv = (R::of(q.y) - self.pnts[lo].y).stored();
+                let du = (R::of(self.pnts[lo].x) - q.x).stored();
+                let sp = ((R::of(q.x) - x) * dv + (R::of(q.y) - y) * du).stored();
+                let v1 = ((R::of(q.x) - n1.x) * dv + (R::of(q.y) - n1.y) * du - sp).stored();
+                let v2 = ((R::of(q.y) - n2.y) * du + (R::of(q.x) - n2.x) * dv - sp).stored();
                 (v1, v2)
             }
             (SiteType::Pnt, SiteType::Seg) => {
@@ -233,9 +236,9 @@ impl Engine {
         let b = seg.b;
         let na = -seg.a;
         let p = self.pnts[seg.i1];
-        let sp = (x - p.x) * b + (y - p.y) * na;
-        let v1 = ((n1.x - p.x) * b + (n1.y - p.y) * na) - sp;
-        let v2 = ((n2.x - p.x) * b + (n2.y - p.y) * na) - sp;
+        let sp = ((R::of(x) - p.x) * b + (R::of(y) - p.y) * na).stored();
+        let v1 = ((R::of(n1.x) - p.x) * b + (R::of(n1.y) - p.y) * na - sp).stored();
+        let v2 = ((R::of(n2.x) - p.x) * b + (R::of(n2.y) - p.y) * na - sp).stored();
         (v1, v2)
     }
 
@@ -254,18 +257,18 @@ impl Engine {
         }
         let a = self.pnts[seg.i1];
         let b = self.pnts[seg.i2];
-        let dy = b.y - a.y;
-        let dx = a.x - b.x;
-        let sp = (b.x - x) * dy + (b.y - y) * dx;
+        let dy = (R::of(b.y) - a.y).stored();
+        let dx = (R::of(a.x) - b.x).stored();
+        let sp = ((R::of(b.x) - x) * dy + (R::of(b.y) - y) * dx).stored();
         let v1 = if n1.r == 0.0 {
             -sp
         } else {
-            ((b.x - n1.x) * dy + (b.y - n1.y) * dx) - sp
+            ((R::of(b.x) - n1.x) * dy + (R::of(b.y) - n1.y) * dx - sp).stored()
         };
         let v2 = if n2.r == 0.0 {
             -sp
         } else {
-            ((b.y - n2.y) * dx + (b.x - n2.x) * dy) - sp
+            ((R::of(b.y) - n2.y) * dx + (R::of(b.x) - n2.x) * dy - sp).stored()
         };
         (v1, v2)
     }
@@ -276,22 +279,27 @@ impl Engine {
             return false;
         }
         let p = self.pnts[pnt];
-        let d = p.x * s.a + p.y * s.b + s.c;
+        let d = (R::of(p.x) * s.a + R::of(p.y) * s.b + s.c).stored();
         if TINY < d || d < -TINY {
             return false;
         }
         let start = self.pnts[s.i1];
-        let t = (p.x - start.x) * s.b - (p.y - start.y) * s.a;
-        if s.lgth + ZERO < t || t < -ZERO {
+        let t = ((R::of(p.x) - start.x) * s.b - (R::of(p.y) - start.y) * s.a).stored();
+        if R::of(s.lgth) + ZERO < t || t < -ZERO {
             return false;
         }
-        let d_start = dist(start.x - p.x, start.y - p.y);
+        let d_start = dist::<R>(
+            (R::of(start.x) - p.x).stored(),
+            (R::of(start.y) - p.y).stored(),
+        )
+        .stored();
         if !(TINY < d_start || d_start < -TINY) {
             self.merge_pnts(s.i1, pnt);
             return true;
         }
         let end = self.pnts[s.i2];
-        let d_end = dist(end.x - p.x, end.y - p.y);
+        let d_end =
+            dist::<R>((R::of(end.x) - p.x).stored(), (R::of(end.y) - p.y).stored()).stored();
         if !(TINY < d_end || d_end < -TINY) {
             self.merge_pnts(s.i2, pnt);
             return true;
@@ -315,13 +323,19 @@ impl Engine {
             shared += 1;
             0
         } else {
-            sign_eps(st2.x * s1.a + st2.y * s1.b + s1.c, SMALL)
+            sign_eps(
+                (R::of(st2.x) * s1.a + R::of(st2.y) * s1.b + s1.c).stored(),
+                SMALL,
+            )
         };
         let sign_e = if s1.i1 == s2.i2 || s1.i2 == s2.i2 {
             shared += 1;
             0
         } else {
-            sign_eps(en2.x * s1.a + en2.y * s1.b + s1.c, SMALL)
+            sign_eps(
+                (R::of(en2.x) * s1.a + R::of(en2.y) * s1.b + s1.c).stored(),
+                SMALL,
+            )
         };
 
         if shared == 2 {
@@ -341,7 +355,7 @@ impl Engine {
             return false;
         }
 
-        let d1 = st1.x * s2.a + st1.y * s2.b + s2.c;
+        let d1 = (R::of(st1.x) * s2.a + R::of(st1.y) * s2.b + s2.c).stored();
         let side1 = if SMALL < d1 {
             1
         } else if -SMALL < d1 {
@@ -349,7 +363,7 @@ impl Engine {
         } else {
             -1
         };
-        let d2 = en1.x * s2.a + en1.y * s2.b + s2.c;
+        let d2 = (R::of(en1.x) * s2.a + R::of(en1.y) * s2.b + s2.c).stored();
         let side2 = if d2 > SMALL || d2.is_nan() {
             1
         } else if -SMALL <= d2 {
@@ -362,14 +376,14 @@ impl Engine {
         }
 
         let dir = Point { x: s1.b, y: -s1.a };
-        let t = (d1.abs() * s1.lgth) / (d2.abs() + d1.abs());
+        let t = (R::of(d1.abs()) * s1.lgth / (R::of(d2.abs()) + d1.abs())).stored();
         let mut q = Point {
-            x: t * dir.x + st1.x,
-            y: t * dir.y + st1.y,
+            x: (R::of(t) * dir.x + st1.x).stored(),
+            y: (R::of(t) * dir.y + st1.y).stored(),
         };
-        let check = q.x * s2.a + q.y * s2.b + s2.c;
+        let check = (R::of(q.x) * s2.a + R::of(q.y) * s2.b + s2.c).stored();
         if SMALL < check || check < -SMALL {
-            let mut t = s1.lgth * 0.5;
+            let mut t = (R::of(s1.lgth) * 0.5).stored();
             if let Some(root) = self.find_root_on_curve(
                 RootTarget {
                     a: s2.a,
@@ -398,10 +412,11 @@ impl Engine {
             return false;
         }
         let (lo, hi) = if i2 < i1 { (i2, i1) } else { (i1, i2) };
-        let d = dist(
-            self.pnts[lo].x - self.pnts[hi].x,
-            self.pnts[lo].y - self.pnts[hi].y,
-        );
+        let d = dist::<R>(
+            (R::of(self.pnts[lo].x) - self.pnts[hi].x).stored(),
+            (R::of(self.pnts[lo].y) - self.pnts[hi].y).stored(),
+        )
+        .stored();
         if (-TINY..=TINY).contains(&d) {
             self.merge_pnts(lo, hi);
             return true;
@@ -459,8 +474,8 @@ impl Engine {
                     let nk1 = self.nodes[k1];
                     if 0.0 < nk.r
                         && 0.0 < nk1.r
-                        && (nk.x * seg.a + nk.y * seg.b + seg.c)
-                            * (nk1.x * seg.a + nk1.y * seg.b + seg.c)
+                        && (R::of(nk.x) * seg.a + R::of(nk.y) * seg.b + seg.c)
+                            * (R::of(nk1.x) * seg.a + R::of(nk1.y) * seg.b + seg.c)
                             < 0.0
                     {
                         let p = if seg.i1 == other { p_start } else { p_end };

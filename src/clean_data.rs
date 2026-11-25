@@ -1,5 +1,6 @@
 use crate::data::{FIRST_INPUT_PNT, NUM_BBOX_RGT_PNTS};
 use crate::misc::quicksort;
+use crate::real::Real;
 use crate::state::*;
 
 fn pnt_compare(a: &Pnt, b: &Pnt) -> i32 {
@@ -16,7 +17,7 @@ fn pnt_compare(a: &Pnt, b: &Pnt) -> i32 {
     }
 }
 
-impl Engine {
+impl<R: Real> Engine<R> {
     fn num_arc_records(&self) -> usize {
         if self.num_arcs == 0 {
             self.num_apx_arcs

@@ -1,4 +1,4 @@
-use open_evdop::{OffsetCurve, OffsetError, OffsetParameters, Offsetter, Orientation};
+use open_evdop::{Arithmetic, OffsetCurve, OffsetError, OffsetParameters, Offsetter, Orientation};
 use std::f64::consts::{PI, TAU};
 
 const LINE_TOLERANCE: f64 = 1e-9;
@@ -129,9 +129,42 @@ fn run(inputs: &[Input], params: OffsetParameters) -> Offsetter {
     v
 }
 
+const ARITHMETICS: [Arithmetic; 2] = [Arithmetic::Double, Arithmetic::Extended];
+
+/// Checks the offsets in every arithmetic, which must give the same number of loops; returns the
+/// offset distance of each loop in `Double`.
+fn check_offsets(
+    name: &str,
+    inputs: &[Input],
+    params: OffsetParameters,
+    tolerance: f64,
+) -> Vec<f64> {
+    let mut per_arithmetic: Vec<Vec<f64>> = ARITHMETICS
+        .iter()
+        .map(|&arithmetic| {
+            let label = format!("{name} [{arithmetic:?}]");
+            check_offsets_in(
+                &label,
+                inputs,
+                OffsetParameters {
+                    arithmetic,
+                    ..params
+                },
+                tolerance,
+            )
+        })
+        .collect();
+    assert_eq!(
+        per_arithmetic[0].len(),
+        per_arithmetic[1].len(),
+        "{name}: the arithmetics give different numbers of loops"
+    );
+    per_arithmetic.swap_remove(0)
+}
+
 /// Checks every loop is closed and every sampled point lies at the expected offset distance.
 /// Returns the offset distance of each loop.
-fn check_offsets(
+fn check_offsets_in(
     name: &str,
     inputs: &[Input],
     params: OffsetParameters,

@@ -1,7 +1,8 @@
 use crate::consts::*;
+use crate::real::Real;
 use crate::state::*;
 
-impl Engine {
+impl<R: Real> Engine<R> {
     /// Finds the node of `near_pnt`'s Voronoi cell that the new point at (x, y) violates most.
     pub(crate) fn find_most_violated_node_pnt(&mut self, x: f64, y: f64, near_pnt: usize) -> usize {
         let e0 = self.pnts[near_pnt].vd_edge;
@@ -24,10 +25,10 @@ impl Engine {
         let mut e = e0;
         loop {
             let node = self.nodes[k];
-            let dx = x - node.x;
-            let dy = y - node.y;
-            let dist = dy * dy + dx * dx;
-            if dist < node.r && dist * best_r2 < node.r * best_dist {
+            let dx = (R::of(x) - node.x).stored();
+            let dy = (R::of(y) - node.y).stored();
+            let dist = (R::of(dy) * dy + R::of(dx) * dx).stored();
+            if dist < node.r && R::of(dist) * best_r2 < R::of(node.r) * best_dist {
                 best = k;
                 best_dist = dist;
                 best_r2 = node.r;
@@ -51,9 +52,10 @@ impl Engine {
         let mut e = e0;
         loop {
             let node = self.nodes[k];
-            let dx = x - node.x;
-            let dy = y - node.y;
-            let violation = node.r.sqrt() - (dy * dy + dx * dx).sqrt();
+            let dx = (R::of(x) - node.x).stored();
+            let dy = (R::of(y) - node.y).stored();
+            let violation =
+                (R::of(node.r).sqrt() - (R::of(dy) * dy + R::of(dx) * dx).sqrt()).stored();
             if best_violation < violation {
                 best_violation = violation;
                 best = k;
@@ -130,9 +132,9 @@ impl Engine {
                     && self.nodes[k2].status != NodeStatus::Deleted
                 {
                     let node = self.nodes[k];
-                    let dx = self.pnts[i].x - node.x;
-                    let dy = self.pnts[i].y - node.y;
-                    if dy * dy + dx * dx < node.r {
+                    let dx = (R::of(self.pnts[i].x) - node.x).stored();
+                    let dy = (R::of(self.pnts[i].y) - node.y).stored();
+                    if R::of(dy) * dy + R::of(dx) * dx < node.r {
                         self.pnts[i1].visited = true;
                         self.pnt_visited.push(i1);
                         self.nodes[k].status = NodeStatus::Deleted;

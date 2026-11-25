@@ -1,4 +1,6 @@
 use crate::error::OffsetError;
+use crate::real::Real;
+use std::marker::PhantomData;
 
 pub(crate) const NIL: usize = usize::MAX;
 
@@ -87,8 +89,8 @@ pub(crate) struct Seg {
 }
 
 impl Seg {
-    pub fn signed_dist(&self, x: f64, y: f64) -> f64 {
-        self.a * x + self.b * y + self.c
+    pub fn signed_dist<R: Real>(&self, x: f64, y: f64) -> R {
+        R::of(self.a) * x + R::of(self.b) * y + self.c
     }
 }
 
@@ -199,8 +201,9 @@ pub(crate) struct OffsetElem {
     pub y: f64,
 }
 
+/// The diagram and offset state; computations evaluate in `R` and store `f64`.
 #[derive(Debug, Clone)]
-pub(crate) struct Engine {
+pub(crate) struct Engine<R> {
     // input data
     pub pnts: Vec<Pnt>,
     pub segs: Vec<Seg>,
@@ -300,4 +303,5 @@ pub(crate) struct Engine {
     pub offset_dt: f64,
     pub offset_vd_id: i32,
     pub new_offset_needed: bool,
+    pub arithmetic: PhantomData<R>,
 }

@@ -1,12 +1,14 @@
 use crate::consts::*;
+use crate::real::Real;
 use crate::state::*;
+use std::marker::PhantomData;
 
 /// Index at which the first stored input point lands; slots 0 and 1 are the left bbox corners.
 pub(crate) const FIRST_INPUT_PNT: usize = 2;
 pub(crate) const NUM_BBOX_RGT_PNTS: usize = 2;
 const MIN_SCALED_EXTENT: f64 = 0.5;
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn new() -> Self {
         Self {
             pnts: Vec::new(),
@@ -29,7 +31,7 @@ impl Engine {
             min_bbox_pnt: NIL,
             max_bbox_pnt: NIL,
             max_offset: 0.0,
-            large: f64::MAX.sqrt() / LARGE_DIVISOR,
+            large: (R::of(f64::MAX).sqrt() / LARGE_DIVISOR).stored(),
             isolated_pnts: false,
             failure: None,
 
@@ -100,6 +102,7 @@ impl Engine {
             offset_dt: 0.0,
             offset_vd_id: 0,
             new_offset_needed: true,
+            arithmetic: PhantomData,
         }
     }
 
@@ -141,14 +144,14 @@ impl Engine {
     pub(crate) fn store_arc(&mut self, i1: usize, i2: usize, cx: f64, cy: f64, ccw: bool) -> usize {
         let p1 = self.pnts[i1];
         let p2 = self.pnts[i2];
-        let r1 = dist(p1.x - cx, p1.y - cy);
-        let r2 = dist(p2.x - cx, p2.y - cy);
+        let r1 = dist::<R>((R::of(p1.x) - cx).stored(), (R::of(p1.y) - cy).stored()).stored();
+        let r2 = dist::<R>((R::of(p2.x) - cx).stored(), (R::of(p2.y) - cy).stored()).stored();
         let arc = Arc {
             i1,
             i2,
             cx,
             cy,
-            r: (r2 + r1) * 0.5,
+            r: ((R::of(r2) + r1) * 0.5).stored(),
             ccw,
             vd_edge: NIL,
         };
@@ -162,8 +165,8 @@ impl Engine {
     }
 
     pub(crate) fn merge_pnts(&mut self, i1: usize, i2: usize) {
-        let x = (self.pnts[i2].x + self.pnts[i1].x) * 0.5;
-        let y = (self.pnts[i2].y + self.pnts[i1].y) * 0.5;
+        let x = ((R::of(self.pnts[i2].x) + self.pnts[i1].x) * 0.5).stored();
+        let y = ((R::of(self.pnts[i2].y) + self.pnts[i1].y) * 0.5).stored();
         self.pnts[i1].x = x;
         self.pnts[i1].y = y;
         self.pnts[i2].x = x;
@@ -236,8 +239,8 @@ impl Engine {
     }
 
     pub(crate) fn scale_data(&mut self) {
-        let dx = self.bb_max_x - self.bb_min_x;
-        let dy = self.bb_max_y - self.bb_min_y;
+        let dx = (R::of(self.bb_max_x) - self.bb_min_x).stored();
+        let dy = (R::of(self.bb_max_y) - self.bb_min_y).stored();
         let mut d = if dy < dx { dx } else { dy };
         if !(ZERO < d) {
             d = ZERO;
@@ -246,16 +249,16 @@ impl Engine {
         self.scale_factor = 1.0;
         if ONE_PLUS_ZERO < d {
             loop {
-                s *= 0.5;
-                if !(s * d > ONE_PLUS_ZERO) {
+                s = (R::of(s) * 0.5).stored();
+                if !(R::of(s) * d > ONE_PLUS_ZERO) {
                     break;
                 }
             }
             self.data_scaled = true;
         } else if d < MIN_SCALED_EXTENT {
             loop {
-                s += s;
-                if !(s * d < MIN_SCALED_EXTENT) {
+                s = (R::of(s) + s).stored();
+                if !(R::of(s) * d < MIN_SCALED_EXTENT) {
                     break;
                 }
             }
@@ -279,18 +282,18 @@ impl Engine {
         let (min_x, min_y) = (self.bb_min_x, self.bb_min_y);
         let n_arcs = self.num_arcs;
         for p in &mut self.pnts {
-            p.x = (p.x - min_x) * s;
-            p.y = (p.y - min_y) * s;
+            p.x = ((R::of(p.x) - min_x) * s).stored();
+            p.y = ((R::of(p.y) - min_y) * s).stored();
         }
         for a in &mut self.arcs[..n_arcs] {
-            a.cx = (a.cx - min_x) * s;
-            a.cy = (a.cy - min_y) * s;
-            a.r *= s;
+            a.cx = ((R::of(a.cx) - min_x) * s).stored();
+            a.cy = ((R::of(a.cy) - min_y) * s).stored();
+            a.r = (R::of(a.r) * s).stored();
         }
         self.shift_x = min_x;
         self.shift_y = min_y;
-        self.bb_max_x = (self.bb_max_x - min_x) * s;
-        self.bb_max_y = (self.bb_max_y - min_y) * s;
+        self.bb_max_x = ((R::of(self.bb_max_x) - min_x) * s).stored();
+        self.bb_max_y = ((R::of(self.bb_max_y) - min_y) * s).stored();
         self.bb_min_x = 0.0;
         self.bb_min_y = 0.0;
     }
@@ -299,42 +302,42 @@ impl Engine {
         debug_assert!(!self.bbox_added, "!bbox_added");
         debug_assert!(self.first_pnt_stored, "bbox_lft_added");
         debug_assert!(self.bbox_rgt_added, "bbox_rgt_added");
-        let factor = f64::from(BBOX_BOUND) + BBOX_MARGIN_FRACTION;
-        let dx = self.bb_max_x - self.bb_min_x;
+        let factor = (R::of(f64::from(BBOX_BOUND)) + BBOX_MARGIN_FRACTION).stored();
+        let dx = (R::of(self.bb_max_x) - self.bb_min_x).stored();
         let mut mx = if ZERO < dx || dx < -ZERO {
-            factor * dx
+            (R::of(factor) * dx).stored()
         } else {
             factor
         };
-        let dy = self.bb_max_y - self.bb_min_y;
+        let dy = (R::of(self.bb_max_y) - self.bb_min_y).stored();
         let mut my = if dy > ZERO || dy < -ZERO || dy.is_nan() {
-            dy * factor
+            (R::of(dy) * factor).stored()
         } else {
             factor
         };
-        if my * 0.5 <= mx {
-            if my < 0.5 * mx {
-                my = 0.5 * mx;
+        if R::of(my) * 0.5 <= mx {
+            if R::of(mx) * 0.5 > my {
+                my = (R::of(mx) * 0.5).stored();
             }
         } else {
-            mx = my * 0.5;
+            mx = (R::of(my) * 0.5).stored();
         }
 
         let n = self.pnts.len();
         debug_assert!(self.pnts[0].x == -f64::MAX && self.pnts[0].y == -f64::MAX);
-        self.pnts[0].x = self.bb_min_x - mx;
-        self.pnts[0].y = self.bb_min_y - my;
+        self.pnts[0].x = (R::of(self.bb_min_x) - mx).stored();
+        self.pnts[0].y = (R::of(self.bb_min_y) - my).stored();
         debug_assert!(self.pnts[1].x == -f64::MAX && self.pnts[1].y == f64::MAX);
-        self.pnts[1].x = self.bb_min_x - mx;
-        self.pnts[1].y = self.bb_max_y + my;
+        self.pnts[1].x = (R::of(self.bb_min_x) - mx).stored();
+        self.pnts[1].y = (R::of(self.bb_max_y) + my).stored();
         debug_assert!(self.pnts[n - 2].x == f64::MAX && self.pnts[n - 2].y == -f64::MAX);
-        self.pnts[n - 2].x = self.bb_max_x + mx;
-        self.pnts[n - 2].y = self.bb_min_y - my;
+        self.pnts[n - 2].x = (R::of(self.bb_max_x) + mx).stored();
+        self.pnts[n - 2].y = (R::of(self.bb_min_y) - my).stored();
         debug_assert!(self.pnts[n - 1].x == f64::MAX && self.pnts[n - 1].y == f64::MAX);
-        self.pnts[n - 1].x = self.bb_max_x + mx;
-        self.pnts[n - 1].y = self.bb_max_y + my;
+        self.pnts[n - 1].x = (R::of(self.bb_max_x) + mx).stored();
+        self.pnts[n - 1].y = (R::of(self.bb_max_y) + my).stored();
 
-        self.max_offset = (mx * mx + my * my).sqrt() * MAX_OFFSET_FRACTION;
+        self.max_offset = ((R::of(mx) * mx + R::of(my) * my).sqrt() * MAX_OFFSET_FRACTION).stored();
         self.bbox_added = true;
     }
 
@@ -370,6 +373,6 @@ impl Engine {
     }
 }
 
-pub(crate) fn dist(dx: f64, dy: f64) -> f64 {
-    (dy * dy + dx * dx).sqrt()
+pub(crate) fn dist<R: Real>(dx: f64, dy: f64) -> R {
+    (R::of(dy) * dy + R::of(dx) * dx).sqrt()
 }

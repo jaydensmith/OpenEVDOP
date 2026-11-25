@@ -1,9 +1,10 @@
 use crate::consts::*;
+use crate::real::Real;
 use crate::state::*;
 
 const TREE_SEED_MAX_DEPTH: i32 = 2;
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn heap_reset(&mut self) {
         self.heap.clear();
         self.heap_top_pending = false;
@@ -37,11 +38,11 @@ impl Engine {
             loop {
                 node = next;
                 let split = self.tree[node].pnt;
-                let dx = px - self.pnts[split].x;
-                let dy = py - self.pnts[split].y;
-                let dx2 = dx * dx;
-                let dy2 = dy * dy;
-                let dist = dy2 + dx2;
+                let dx = (R::of(px) - self.pnts[split].x).stored();
+                let dy = (R::of(py) - self.pnts[split].y).stored();
+                let dx2 = (R::of(dx) * dx).stored();
+                let dy2 = (R::of(dy) * dy).stored();
+                let dist = (R::of(dy2) + dx2).stored();
                 if dist < min_dist {
                     min_ind = split;
                     min_dist = dist;
@@ -116,8 +117,8 @@ impl Engine {
     ) {
         loop {
             let depth1 = depth + 1;
-            let cx = (xmin + xmax) * 0.5;
-            let cy = (ymin + ymax) * 0.5;
+            let cx = ((R::of(xmin) + xmax) * 0.5).stored();
+            let cy = ((R::of(ymin) + ymax) * 0.5).stored();
             if *count < 1 {
                 return;
             }
@@ -126,7 +127,9 @@ impl Engine {
             for (n, &pi) in list[..*count].iter().enumerate() {
                 let p = self.pnts[pi];
                 if xmin <= p.x && p.x <= xmax && ymin <= p.y && p.y <= ymax {
-                    let dist = (cx - p.x) * (cx - p.x) + (cy - p.y) * (cy - p.y);
+                    let dist = ((R::of(cx) - p.x) * (R::of(cx) - p.x)
+                        + (R::of(cy) - p.y) * (R::of(cy) - p.y))
+                        .stored();
                     if dist < best_dist {
                         best = n;
                         best_dist = dist;
@@ -167,18 +170,18 @@ impl Engine {
     pub(crate) fn build_tree(&mut self, n_initial: usize) -> (usize, f64) {
         self.tree.clear();
         self.tree_root = NIL;
-        let mut margin_x = (self.bb_max_x - self.bb_min_x) * BBOX_MARGIN_FRACTION;
-        let mut margin_y = (self.bb_max_y - self.bb_min_y) * BBOX_MARGIN_FRACTION;
+        let mut margin_x = ((R::of(self.bb_max_x) - self.bb_min_x) * BBOX_MARGIN_FRACTION).stored();
+        let mut margin_y = ((R::of(self.bb_max_y) - self.bb_min_y) * BBOX_MARGIN_FRACTION).stored();
         if margin_x <= GRID_MIN_MARGIN {
             margin_x = GRID_MIN_MARGIN;
         }
         if margin_y <= GRID_MIN_MARGIN {
             margin_y = GRID_MIN_MARGIN;
         }
-        self.tree_xmin = self.bb_min_x - margin_x;
-        self.tree_xmax = self.bb_max_x + margin_x;
-        self.tree_ymin = self.bb_min_y - margin_y;
-        self.tree_ymax = self.bb_max_y + margin_y;
+        self.tree_xmin = (R::of(self.bb_min_x) - margin_x).stored();
+        self.tree_xmax = (R::of(self.bb_max_x) + margin_x).stored();
+        self.tree_ymin = (R::of(self.bb_min_y) - margin_y).stored();
+        self.tree_ymax = (R::of(self.bb_max_y) + margin_y).stored();
         debug_assert!(self.tree_xmax - self.tree_xmin > ZERO, "gt(delta_x, ZERO)");
         debug_assert!(self.tree_ymax - self.tree_ymin > ZERO, "gt(delta_y, ZERO)");
         debug_assert!(n_initial >= 1, "N_Initial >= 1");

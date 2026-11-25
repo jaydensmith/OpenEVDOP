@@ -1,12 +1,13 @@
 use crate::consts::*;
 use crate::data::NUM_BBOX_RGT_PNTS;
 use crate::error::OffsetError;
+use crate::real::Real;
 use crate::state::*;
 
 /// Points 0..=2 (two left bbox corners and the first input point) seed the initial VD.
 const FIRST_INSERTED_PNT: usize = 3;
 
-impl Engine {
+impl<R: Real> Engine<R> {
     pub(crate) fn reset_vd(&mut self) {
         self.nodes.clear();
         self.edges.clear();
