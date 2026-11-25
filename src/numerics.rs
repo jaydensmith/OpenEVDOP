@@ -43,15 +43,16 @@ pub(crate) enum Qualification {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum QuadRoots {
+pub(crate) enum QuadRoots<R> {
     NoRoot,
-    One(f64),
-    Two(f64, f64),
+    One(R),
+    Two(R, R),
 }
 
-/// Roots of `a t^2 + b t + c = 0` with coefficient rescaling and
-/// numerically stable root selection.
-pub(crate) fn solve_quadratic<R: Real>(mut a: f64, mut b: f64, mut c: f64) -> QuadRoots {
+/// Roots of `a t^2 + b t + c = 0` with coefficient rescaling and numerically stable root
+/// selection. The coefficients arrive as they are in the registers: the tests and the
+/// discriminant use them so, the roots their stored values.
+pub(crate) fn solve_quadratic<R: Real>(mut a: R, mut b: R, mut c: R) -> QuadRoots<R> {
     if a <= PARALLEL_EPS {
         loop {
             if a < -PARALLEL_EPS
@@ -63,36 +64,36 @@ pub(crate) fn solve_quadratic<R: Real>(mut a: f64, mut b: f64, mut c: f64) -> Qu
             {
                 break;
             }
-            a = (R::of(a) * RESCALE).stored();
-            b = (R::of(b) * RESCALE).stored();
-            c = (R::of(c) * RESCALE).stored();
+            a = a * RESCALE;
+            b = b * RESCALE;
+            c = c * RESCALE;
             if a > PARALLEL_EPS {
                 break;
             }
         }
     }
+    let (a_stored, b_stored, c_stored) = (a.stored(), b.stored(), c.stored());
     if a > PIVOT_TINY || a < -PIVOT_TINY {
-        let disc = (R::of(b) * b - R::of(a) * 4.0 * c).stored();
+        let disc = b * b - a * 4.0 * c;
         if disc <= 0.0 {
             if disc < -DISC_ZERO {
                 return QuadRoots::NoRoot;
             }
-            return QuadRoots::One((-(R::of(b) / (R::of(a) * 2.0))).stored());
+            return QuadRoots::One(-(R::of(b_stored) / (R::of(a_stored) * 2.0)));
         }
-        let root = R::of(disc).sqrt().stored();
-        let qq = (if b <= 0.0 {
-            R::of(b) - root
+        let root = disc.sqrt();
+        let qq = if b <= 0.0 {
+            R::of(b_stored) - root
         } else {
-            R::of(root) + b
-        } * -0.5)
-            .stored();
+            root + b_stored
+        } * -0.5;
         if qq > PIVOT_TINY || qq < -PIVOT_TINY {
-            QuadRoots::Two((R::of(qq) / a).stored(), (R::of(c) / qq).stored())
+            QuadRoots::Two(qq / a_stored, R::of(c_stored) / qq)
         } else {
-            QuadRoots::One((R::of(qq) / a).stored())
+            QuadRoots::One(qq / a_stored)
         }
     } else if b > PIVOT_TINY || b < -PIVOT_TINY {
-        QuadRoots::One((-(R::of(c) / b)).stored())
+        QuadRoots::One(-(R::of(c_stored) / b_stored))
     } else {
         QuadRoots::NoRoot
     }
@@ -177,19 +178,19 @@ impl<R: Real> Engine<R> {
     /// relaxing the tolerance from ZERO up to ZERO_MAX.
     pub(crate) fn qualify_on_seg(&self, s: usize, c1: Point, c2: Point) -> Qualification {
         let lgth = self.segs[s].lgth;
-        let p1 = self.seg_param(s, c1).stored();
+        let p1 = self.seg_param(s, c1);
         let mut eps = ZERO;
         while eps <= ZERO_MAX {
-            let hi = (R::of(eps) + lgth).stored();
-            let p2 = self.seg_param(s, c2).stored();
-            if p1 <= hi && -eps <= p1 {
+            let hi = R::of(eps) + lgth;
+            let p2 = self.seg_param(s, c2);
+            if p1 <= hi && p1 >= -eps {
                 return if p2 > hi || p2 < -eps {
                     Qualification::First
                 } else {
                     Qualification::Both
                 };
             }
-            if p2 <= hi && -eps <= p2 {
+            if p2 <= hi && p2 >= -eps {
                 return Qualification::Second;
             }
             eps = (R::of(eps) * 10.0).stored();

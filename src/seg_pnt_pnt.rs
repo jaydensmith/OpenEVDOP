@@ -78,22 +78,22 @@ impl<R: Real> Engine<R> {
                 return false;
             }
         }
-        let wx = (R::of(pj.x) - pk.x).stored();
-        let wy = (R::of(pj.y) - pk.y).stored();
-        let w2 = (R::of(wx) * wx + R::of(wy) * wy).stored();
+        let wx = R::of(pj.x) - pk.x;
+        let wy = R::of(pj.y) - pk.y;
+        let w2 = wx * wx + wy * wy;
         if w2 > ZERO_SQ || w2 < -ZERO_SQ {
             if d_k > 0.0 {
                 a = -a;
                 b = -b;
             }
-            let den = (R::of(wx) * a + R::of(wy) * b).stored();
+            let den = wx * a + wy * b;
             if den > ZERO || den < -ZERO {
-                let t = ((R::of(wx) * wx + R::of(wy) * wy) * -0.5 / den).stored();
+                let t = (wx * wx + wy * wy) * -0.5 / den;
                 out.center = Point {
-                    x: (R::of(t) * a + pj.x).stored(),
-                    y: (R::of(t) * b + pj.y).stored(),
+                    x: (t * a + pj.x).stored(),
+                    y: (t * b + pj.y).stored(),
                 };
-                out.r = t.abs();
+                out.r = t.abs().stored();
                 return true;
             }
         }
@@ -111,14 +111,14 @@ impl<R: Real> Engine<R> {
     ) -> Option<(Point, f64, bool)> {
         let seg = self.segs[i];
         debug_assert!(seg.lgth > ZERO, "gt(GetSegLgth(i), ZERO)");
-        let dx = (R::of(pk.x) - pj.x).stored();
-        let dy = (R::of(pk.y) - pj.y).stored();
-        let w2 = (R::of(dx) * dx + R::of(dy) * dy).stored();
+        let dx = R::of(pk.x) - pj.x;
+        let dy = R::of(pk.y) - pj.y;
+        let w2 = dx * dx + dy * dy;
         let v = Point {
-            x: (-(R::of(dy) * 0.5)).stored(),
-            y: (R::of(dx) * 0.5).stored(),
+            x: (-(dy * 0.5)).stored(),
+            y: (dx * 0.5).stored(),
         };
-        let h2 = (R::of(w2) * 0.25).stored();
+        let h2 = (w2 * 0.25).stored();
 
         let d_j = (R::of(seg.a) * pj.x + R::of(seg.b) * pj.y + seg.c).stored();
         if (-ZERO..=ZERO).contains(&d_j) {
@@ -135,21 +135,21 @@ impl<R: Real> Engine<R> {
             }
         }
 
-        let d_mid = ((R::of(d_k) + d_j) * 0.5).stored();
-        let q = (R::of(seg.b) * v.y + R::of(seg.a) * v.x).stored();
-        let coef_b = (R::of(d_mid) * 2.0 * q).stored();
-        let coef_a = (R::of(q) * q - h2).stored();
-        let coef_c = (R::of(d_mid) * d_mid - h2).stored();
+        let d_mid = (R::of(d_k) + d_j) * 0.5;
+        let q = R::of(seg.b) * v.y + R::of(seg.a) * v.x;
+        let coef_b = d_mid * 2.0 * q;
+        let coef_a = q * q - h2;
+        let coef_c = d_mid * d_mid - h2;
         let m = Point {
             x: ((R::of(pj.x) + pk.x) * 0.5).stored(),
             y: ((R::of(pj.y) + pk.y) * 0.5).stored(),
         };
-        let at = |t: f64| Point {
+        let at = |t: R| Point {
             x: (R::of(v.x) * t + m.x).stored(),
-            y: (R::of(t) * v.y + m.y).stored(),
+            y: (t * v.y + m.y).stored(),
         };
 
-        let (center, ambiguous) = match solve_quadratic::<R>(coef_a, coef_b, coef_c) {
+        let (center, ambiguous) = match solve_quadratic(coef_a, coef_b, coef_c) {
             QuadRoots::NoRoot => return None,
             QuadRoots::One(t) => (at(t), false),
             QuadRoots::Two(t1, t2) => {

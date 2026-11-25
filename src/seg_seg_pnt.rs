@@ -175,11 +175,11 @@ impl<R: Real> Engine<R> {
         let coef_a = (R::of(d.x) * d.x + R::of(d.y) * d.y - R::of(q) * q).stored();
         let coef_b = ((R::of(wy) * d.y + R::of(wx) * d.x - R::of(q) * dp) * 2.0).stored();
         let coef_c = (R::of(wy) * wy + R::of(wx) * wx - R::of(dp) * dp).stored();
-        let at = |t: f64| Point {
+        let at = |t: R| Point {
             x: (R::of(d.x) * t + p.x).stored(),
-            y: (R::of(t) * d.y + p.y).stored(),
+            y: (t * d.y + p.y).stored(),
         };
-        let center = match solve_quadratic::<R>(coef_a, coef_b, coef_c) {
+        let center = match solve_quadratic(R::of(coef_a), R::of(coef_b), R::of(coef_c)) {
             QuadRoots::NoRoot => return false,
             QuadRoots::One(t) => at(t),
             QuadRoots::Two(t1, t2) => {
