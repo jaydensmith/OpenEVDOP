@@ -7,20 +7,20 @@ type NewEdges = (usize, usize, usize, usize);
 
 const NO_NEW_EDGES: NewEdges = (NIL, NIL, NIL, NIL);
 
-fn sign_open_lower(v: f64) -> i32 {
-    if ZERO < v {
+fn sign_open_lower<R: Real>(v: R) -> i32 {
+    if v > ZERO {
         1
-    } else if -ZERO < v {
+    } else if v > -ZERO {
         0
     } else {
         -1
     }
 }
 
-fn sign_closed_lower(v: f64) -> i32 {
-    if ZERO < v || v.is_nan() {
+fn sign_closed_lower<R: Real>(v: R) -> i32 {
+    if v > ZERO || v != v {
         1
-    } else if -ZERO <= v {
+    } else if v >= -ZERO {
         0
     } else {
         -1
@@ -100,21 +100,23 @@ impl<R: Real> Engine<R> {
         let u = self.pnts[s.i1];
         let dir_x = s.b;
         let dir_y = -s.a;
-        let t0 = ((R::of(p.x) - u.x) * dir_x + (R::of(p.y) - u.y) * dir_y).stored();
-        let s2 = ((R::of(n2.x) - u.x) * dir_x + (R::of(n2.y) - u.y) * dir_y - t0).stored();
-        let s1 = ((R::of(n1.x) - u.x) * dir_x + (R::of(n1.y) - u.y) * dir_y - t0).stored();
+        let t0 = (R::of(p.x) - u.x) * dir_x + (R::of(p.y) - u.y) * dir_y;
+        let s1 = (R::of(n1.x) - u.x) * dir_x + (R::of(n1.y) - u.y) * dir_y - t0;
+        let s2 = (R::of(n2.x) - u.x) * dir_x + (R::of(n2.y) - u.y) * dir_y - t0;
         let prod = sign_open_lower(s1) * sign_closed_lower(s2);
         if prod >= 0 && (prod != 0 || n1.r <= ZERO || n2.r <= ZERO) {
             return;
         }
-        let h = ((R::of(s.a) * p.x + R::of(p.y) * s.b + s.c) * 0.5).stored();
-        if prod >= 0 && (ZERO < h || h < -ZERO) {
+        let h = (R::of(s.a) * p.x + R::of(p.y) * s.b + s.c) * 0.5;
+        if prod >= 0 && (h > ZERO || h < -ZERO) {
             return;
         }
-        let fx = (R::of(h) * s.a).stored();
-        let fy = (R::of(h) * s.b).stored();
-        let r = if h < 0.0 { -h } else { h };
-        let n = self.store_node((R::of(p.x) - fx).stored(), (R::of(p.y) - fy).stored(), r);
+        let r = if h < 0.0 { -h } else { h }.stored();
+        let n = self.store_node(
+            (R::of(p.x) - h * s.a).stored(),
+            (R::of(p.y) - h * s.b).stored(),
+            r,
+        );
         self.split_edge(e, n, false);
     }
 

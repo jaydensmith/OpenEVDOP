@@ -24,22 +24,22 @@ impl<R: Real> Engine<R> {
             let p2 = self.pnts[i2];
             let ux = (R::of(p2.x) - p1.x).stored();
             let uy = (R::of(p2.y) - p1.y).stored();
-            let lgth = (R::of(uy) * uy + R::of(ux) * ux).sqrt().stored();
-            if ZERO < lgth {
+            let lgth = (R::of(uy) * uy + R::of(ux) * ux).sqrt();
+            if lgth > ZERO {
                 let ux = (R::of(ux) / lgth).stored();
                 let uy = (R::of(uy) / lgth).stored();
                 let mut c = (R::of(uy) * p1.x - R::of(p1.y) * ux).stored();
                 let a = -uy;
                 let b = ux;
-                let d = (R::of(a) * p2.x + R::of(p2.y) * ux + c).stored();
-                if ZERO < d || d < -ZERO {
+                let d = R::of(a) * p2.x + R::of(p2.y) * ux + c;
+                if d > ZERO || d < -ZERO {
                     c = ((R::of(uy) * p2.x - R::of(p2.y) * ux + c) * 0.5).stored();
                 }
                 let seg = &mut self.segs[i];
                 seg.a = a;
                 seg.b = b;
                 seg.c = c;
-                seg.lgth = lgth;
+                seg.lgth = lgth.stored();
                 i += 1;
             } else {
                 if p2.x != p1.x || p2.y != p1.y {
