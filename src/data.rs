@@ -144,14 +144,14 @@ impl<R: Real> Engine<R> {
     pub(crate) fn store_arc(&mut self, i1: usize, i2: usize, cx: f64, cy: f64, ccw: bool) -> usize {
         let p1 = self.pnts[i1];
         let p2 = self.pnts[i2];
-        let r1 = dist::<R>((R::of(p1.x) - cx).stored(), (R::of(p1.y) - cy).stored()).stored();
-        let r2 = dist::<R>((R::of(p2.x) - cx).stored(), (R::of(p2.y) - cy).stored()).stored();
+        let r1 = dist(R::of(p1.x) - cx, R::of(p1.y) - cy).stored();
+        let r2 = dist(R::of(p2.x) - cx, R::of(p2.y) - cy);
         let arc = Arc {
             i1,
             i2,
             cx,
             cy,
-            r: ((R::of(r2) + r1) * 0.5).stored(),
+            r: ((r2 + r1) * 0.5).stored(),
             ccw,
             vd_edge: NIL,
         };
@@ -373,6 +373,7 @@ impl<R: Real> Engine<R> {
     }
 }
 
-pub(crate) fn dist<R: Real>(dx: f64, dy: f64) -> R {
-    (R::of(dy) * dy + R::of(dx) * dx).sqrt()
+/// `√(dx² + dy²)` from the differences as they are in the registers.
+pub(crate) fn dist<R: Real>(dx: R, dy: R) -> R {
+    (dy * dy + dx * dx).sqrt()
 }

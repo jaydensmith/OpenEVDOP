@@ -25,6 +25,7 @@ pub(crate) trait Real:
     /// The value as stored to a double.
     fn stored(self) -> f64;
     fn abs(self) -> Self;
+    /// The C library's `sqrt`: the root of the value stored as a double.
     fn sqrt(self) -> Self;
     fn atan2(self, x: Self) -> Self;
     /// Truncated toward zero to an `i32`.
@@ -71,7 +72,7 @@ impl Real for Extended {
     }
 
     fn sqrt(self) -> Extended {
-        Extended::sqrt(self)
+        Extended::of(self.to_double()).sqrt()
     }
 
     fn atan2(self, x: Extended) -> Extended {

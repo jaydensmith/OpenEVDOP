@@ -161,7 +161,7 @@ impl<R: Real> Engine<R> {
             if 0.0 < det2 {
                 let mx = ((R::of(pj.x) + pi.x) * 0.5).stored();
                 let my = ((R::of(pi.y) + pj.y) * 0.5).stored();
-                let r = (dist::<R>(dx, (R::of(pi.y) - pj.y).stored()) * 0.5).stored();
+                let r = (dist(R::of(dx), R::of(pi.y) - pj.y) * 0.5).stored();
                 let node = self.store_node(mx, my, r);
                 self.split_edge(e, node, false);
             }
@@ -288,18 +288,13 @@ impl<R: Real> Engine<R> {
         if R::of(s.lgth) + ZERO < t || t < -ZERO {
             return false;
         }
-        let d_start = dist::<R>(
-            (R::of(start.x) - p.x).stored(),
-            (R::of(start.y) - p.y).stored(),
-        )
-        .stored();
+        let d_start = dist(R::of(start.x) - p.x, R::of(start.y) - p.y).stored();
         if !(TINY < d_start || d_start < -TINY) {
             self.merge_pnts(s.i1, pnt);
             return true;
         }
         let end = self.pnts[s.i2];
-        let d_end =
-            dist::<R>((R::of(end.x) - p.x).stored(), (R::of(end.y) - p.y).stored()).stored();
+        let d_end = dist(R::of(end.x) - p.x, R::of(end.y) - p.y).stored();
         if !(TINY < d_end || d_end < -TINY) {
             self.merge_pnts(s.i2, pnt);
             return true;
@@ -412,9 +407,9 @@ impl<R: Real> Engine<R> {
             return false;
         }
         let (lo, hi) = if i2 < i1 { (i2, i1) } else { (i1, i2) };
-        let d = dist::<R>(
-            (R::of(self.pnts[lo].x) - self.pnts[hi].x).stored(),
-            (R::of(self.pnts[lo].y) - self.pnts[hi].y).stored(),
+        let d = dist(
+            R::of(self.pnts[lo].x) - self.pnts[hi].x,
+            R::of(self.pnts[lo].y) - self.pnts[hi].y,
         )
         .stored();
         if (-TINY..=TINY).contains(&d) {

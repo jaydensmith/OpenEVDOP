@@ -79,8 +79,8 @@ impl<R: Real> Engine<R> {
                 continue;
             }
 
-            let d1 = dist::<R>((R::of(x1) - cx).stored(), (R::of(y1) - cy).stored()).stored();
-            let d2 = dist::<R>((R::of(x2) - cx).stored(), (R::of(y2) - cy).stored()).stored();
+            let d1 = dist(R::of(x1) - cx, R::of(y1) - cy).stored();
+            let d2 = dist(R::of(x2) - cx, R::of(y2) - cy).stored();
             let mut r = ((R::of(d1) + d2) * 0.5).stored();
             if !(half <= r) {
                 r = half;
@@ -116,10 +116,8 @@ impl<R: Real> Engine<R> {
                         || sign_zero(orient2) == s_orient,
                     "(SignEps(orient, ZERO) == 0) || (s_orient == 0) || (SignEps(orient, ZERO) == s_orient)"
                 );
-                let d1 = dist::<R>((R::of(x1) - new_cx).stored(), (R::of(y1) - new_cy).stored())
-                    .stored();
-                let d2 = dist::<R>((R::of(x2) - new_cx).stored(), (R::of(y2) - new_cy).stored())
-                    .stored();
+                let d1 = dist(R::of(x1) - new_cx, R::of(y1) - new_cy).stored();
+                let d2 = dist(R::of(x2) - new_cx, R::of(y2) - new_cy).stored();
                 r = ((R::of(d2) + d1) * 0.5).stored();
                 self.arcs[i].cx = new_cx;
                 self.arcs[i].cy = new_cy;
