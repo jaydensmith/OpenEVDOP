@@ -8,7 +8,7 @@ const MAX_EXPANSIONS: usize = 50;
 /// Gaussian elimination with partial pivoting.
 /// Returns the solution and the eliminated pivot; every singular or
 /// underdetermined system yields `None`.
-pub(crate) fn solve_2x2<R: Real>(a: [[f64; 2]; 2], b: [f64; 2]) -> Option<([f64; 2], f64)> {
+pub(crate) fn solve_2x2<R: Real>(a: [[f64; 2]; 2], b: [f64; 2]) -> Option<([f64; 2], R)> {
     let nonzero = |v: f64| v > PIVOT_TINY || v < -PIVOT_TINY;
     let (col, other) = if nonzero(a[0][0]) || nonzero(a[1][0]) {
         (0, 1)
@@ -31,7 +31,7 @@ pub(crate) fn solve_2x2<R: Real>(a: [[f64; 2]; 2], b: [f64; 2]) -> Option<([f64;
     let mut x = [0.0; 2];
     x[other] = other_value.stored();
     x[col] = ((R::of(b[p]) - other_value * a[p][other]) / a[p][col]).stored();
-    Some((x, elim.stored()))
+    Some((x, elim))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -176,13 +176,13 @@ impl<R: Real> Engine<R> {
 
     /// Classifies which of two candidate centres project onto segment `s`,
     /// relaxing the tolerance from ZERO up to ZERO_MAX.
-    pub(crate) fn qualify_on_seg(&self, s: usize, c1: Point, c2: Point) -> Qualification {
+    /// `p1` and `p2` are the parameters of the two candidates on segment `s`, as the caller
+    /// holds them.
+    pub(crate) fn qualify_on_seg(&self, s: usize, p1: R, p2: R) -> Qualification {
         let lgth = self.segs[s].lgth;
-        let p1 = self.seg_param(s, c1);
         let mut eps = ZERO;
         while eps <= ZERO_MAX {
             let hi = R::of(eps) + lgth;
-            let p2 = self.seg_param(s, c2);
             if p1 <= hi && p1 >= -eps {
                 return if p2 > hi || p2 < -eps {
                     Qualification::First

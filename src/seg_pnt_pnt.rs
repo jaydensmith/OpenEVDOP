@@ -155,7 +155,7 @@ impl<R: Real> Engine<R> {
             QuadRoots::Two(t1, t2) => {
                 let c1 = at(t1);
                 let c2 = at(t2);
-                let qual = self.qualify_on_seg(i, c1, c2);
+                let qual = self.qualify_on_seg(i, self.seg_param(i, c1), self.seg_param(i, c2));
                 let (second, ambiguous) = match qual {
                     Qualification::First => (false, false),
                     Qualification::Second => (true, false),

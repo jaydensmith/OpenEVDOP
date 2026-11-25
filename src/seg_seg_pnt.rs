@@ -15,7 +15,7 @@ impl<R: Real> Engine<R> {
     ) -> (f64, f64, f64) {
         let seg = self.segs[m];
         let (a, b, c) = (seg.a, seg.b, seg.c);
-        let value = |p: Point| (R::of(p.x) * a + R::of(p.y) * b + c).stored();
+        let value = |p: Point| R::of(p.x) * a + R::of(p.y) * b + c;
         let d = value(pk);
         let flip = if d > ZERO || d < -ZERO {
             d < 0.0
@@ -117,7 +117,7 @@ impl<R: Real> Engine<R> {
             2 => {
                 let c1 = at(roots[0]);
                 let c2 = at(roots[1]);
-                let qual = self.qualify_on_seg(j, c1, c2);
+                let qual = self.qualify_stored_first(j, c1, c2);
                 let (second, ambiguous) = match qual {
                     Qualification::First => (false, false),
                     Qualification::Second => (true, false),
@@ -168,25 +168,25 @@ impl<R: Real> Engine<R> {
         else {
             return false;
         };
-        let wx = (R::of(p.x) - pk.x).stored();
-        let wy = (R::of(p.y) - pk.y).stored();
-        let dp = (R::of(p.y) * bi + R::of(p.x) * ai + ci).stored();
-        let q = (R::of(ai) * d.x + R::of(bi) * d.y).stored();
-        let coef_a = (R::of(d.x) * d.x + R::of(d.y) * d.y - R::of(q) * q).stored();
-        let coef_b = ((R::of(wy) * d.y + R::of(wx) * d.x - R::of(q) * dp) * 2.0).stored();
-        let coef_c = (R::of(wy) * wy + R::of(wx) * wx - R::of(dp) * dp).stored();
+        let wx = R::of(p.x) - pk.x;
+        let wy = R::of(p.y) - pk.y;
+        let dp = R::of(p.y) * bi + R::of(p.x) * ai + ci;
+        let q = R::of(ai) * d.x + R::of(bi) * d.y;
+        let coef_a = R::of(d.x) * d.x + R::of(d.y) * d.y - q * q;
+        let coef_b = (wy * d.y + wx * d.x - q * dp) * 2.0;
+        let coef_c = wy * wy + wx * wx - dp * dp;
         let at = |t: R| Point {
             x: (R::of(d.x) * t + p.x).stored(),
             y: (t * d.y + p.y).stored(),
         };
-        let center = match solve_quadratic(R::of(coef_a), R::of(coef_b), R::of(coef_c)) {
+        let center = match solve_quadratic(coef_a, coef_b, coef_c) {
             QuadRoots::NoRoot => return false,
             QuadRoots::One(t) => at(t),
             QuadRoots::Two(t1, t2) => {
                 let c1 = at(t1);
                 let c2 = at(t2);
-                let qi = self.qualify_on_seg(i, c1, c2);
-                let qj = self.qualify_on_seg(j, c1, c2);
+                let qi = self.qualify_stored_first(i, c1, c2);
+                let qj = self.qualify_stored_first(j, c1, c2);
                 let first_was_both = match (qi, qj) {
                     (Qualification::Neither, _) | (_, Qualification::Neither) => Some(false),
                     (Qualification::Both, _)
@@ -214,6 +214,13 @@ impl<R: Real> Engine<R> {
             .abs()
             .stored();
         true
+    }
+
+    /// The candidates' qualification on segment `s` with the first parameter stored, as the
+    /// segment-segment-point solver holds it.
+    fn qualify_stored_first(&self, s: usize, c1: Point, c2: Point) -> Qualification {
+        let p1 = R::of(self.seg_param(s, c1).stored());
+        self.qualify_on_seg(s, p1, self.seg_param(s, c2))
     }
 
     pub(crate) fn seg_seg_pnt_desperate(&self, i: usize, j: usize, pk: Point) -> (Point, f64) {

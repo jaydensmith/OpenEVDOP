@@ -67,17 +67,17 @@ impl<R: Real> Engine<R> {
         others: [usize; 2],
     ) -> Line {
         let line = self.seg_line(m);
-        let nonzero = |d: f64| d > ZERO || d < -ZERO;
+        let nonzero = |d: R| d > ZERO || d < -ZERO;
         let (first, second) = if self.is_seg_site_of_edge(e, m) {
             (node_b, node_a)
         } else {
             (node_a, node_b)
         };
-        let d1 = line.value::<R>(first).stored();
+        let d1 = line.value::<R>(first);
         let flip = if nonzero(d1) {
             d1 < 0.0
         } else {
-            let d2 = line.value::<R>(second).stored();
+            let d2 = line.value::<R>(second);
             if nonzero(d2) {
                 d2 < 0.0
             } else {
@@ -88,10 +88,10 @@ impl<R: Real> Engine<R> {
         if flip { line.flipped() } else { line }
     }
 
-    fn orient_by_endpoints(&mut self, line: Line, others: [usize; 2], fallback: f64) -> bool {
+    fn orient_by_endpoints(&mut self, line: Line, others: [usize; 2], fallback: R) -> bool {
         for s in others {
-            let e1 = line.value::<R>(self.seg_start(s)).stored();
-            let e2 = line.value::<R>(self.seg_end(s)).stored();
+            let e1 = line.value::<R>(self.seg_start(s));
+            let e2 = line.value::<R>(self.seg_end(s));
             if e1 < 0.0 && e2 < 0.0 {
                 return true;
             }
@@ -199,8 +199,8 @@ impl<R: Real> Engine<R> {
         let share_ij = self.segs_share_endpoint(i, j);
         let share_ik = self.segs_share_endpoint(i, k);
         let share_jk = self.segs_share_endpoint(j, k);
-        let acceptable = |s: &Self, center: Point, r: f64| {
-            !(R::of(r) + ZERO_MAX < r_lo || R::of(r_hi) + ZERO_MAX < r)
+        let acceptable = |s: &Self, center: Point, r: R| {
+            !(r + ZERO_MAX < r_lo || R::of(r_hi) + ZERO_MAX < r)
                 && s.is_pnt_between_nodes(e, center.x, center.y, false, ZERO_MAX)
         };
         let mut previous: Option<(Point, f64)> = None;
@@ -214,14 +214,14 @@ impl<R: Real> Engine<R> {
             let rhs = [(R::of(lj.c) - li.c).stored(), (R::of(lk.c) - li.c).stored()];
             if let Some((x, pivot)) = solve_2x2::<R>(a, rhs) {
                 let center = Point { x: x[0], y: x[1] };
-                let r = li.value::<R>(center).abs().stored();
+                let r = li.value::<R>(center).abs();
                 out.center = center;
-                out.r = r;
+                out.r = r.stored();
                 if acceptable(self, center, r) {
                     if pivot > ZERO_MAX || pivot < -ZERO_MAX {
                         return true;
                     }
-                    near_singular = Some((center, r));
+                    near_singular = Some((center, r.stored()));
                 }
             }
 
@@ -287,9 +287,9 @@ impl<R: Real> Engine<R> {
                     x: (R::of(d1.x) * x[0] + p1.x).stored(),
                     y: (R::of(d1.y) * x[0] + p1.y).stored(),
                 };
-                let r = li.value::<R>(center).abs().stored();
+                let r = li.value::<R>(center).abs();
                 out.center = center;
-                out.r = r;
+                out.r = r.stored();
                 if acceptable(self, center, r) {
                     return true;
                 }
