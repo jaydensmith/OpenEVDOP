@@ -1,7 +1,9 @@
-use open_evdop::{OffsetCurve, Offsetter, Orientation};
+use open_evdop::{Arithmetic, OffsetCurve, Offsetter, Orientation};
 use std::f64::consts::TAU;
+use std::time::Instant;
 
 const TOLERANCE: f64 = 1e-7;
+const ARITHMETICS: [Arithmetic; 2] = [Arithmetic::Double, Arithmetic::Extended];
 
 struct Lcg(u64);
 
@@ -58,8 +60,11 @@ fn sample(curve: OffsetCurve, t: f64) -> (f64, f64) {
     }
 }
 
-fn check_polygon(label: &str, poly: &[(f64, f64)], radius: f64) -> usize {
+fn check_polygon(label: &str, poly: &[(f64, f64)], radius: f64, arithmetic: Arithmetic) -> usize {
+    let label = format!("{label} [{arithmetic:?}]");
+    let started = Instant::now();
     let mut v = Offsetter::new();
+    v.parameters.arithmetic = arithmetic;
     v.parameters.offset_radius = radius;
     v.parameters.left_offset = true;
     v.parameters.right_offset = true;
@@ -84,8 +89,9 @@ fn check_polygon(label: &str, poly: &[(f64, f64)], radius: f64) -> usize {
         }
     }
     println!(
-        "{label}: {} loops, {curves} curves, worst distance error {worst:.3e}",
-        v.num_offset_loops()
+        "{label}: {} loops, {curves} curves, worst distance error {worst:.3e}, {:.3} s",
+        v.num_offset_loops(),
+        started.elapsed().as_secs_f64()
     );
     assert!(
         worst <= TOLERANCE * radius.max(1.0),
@@ -105,7 +111,10 @@ fn random_star_polygons_offset_at_exact_distance() {
         for trial in 0..trials {
             let poly = random_star(&mut rng, n, 3.0, 10.0);
             for radius in [0.05, 0.5, 2.5] {
-                check_polygon(&format!("n={n} trial={trial} r={radius}"), &poly, radius);
+                for arithmetic in ARITHMETICS {
+                    let label = format!("n={n} trial={trial} r={radius}");
+                    check_polygon(&label, &poly, radius, arithmetic);
+                }
             }
         }
     }
@@ -115,8 +124,10 @@ fn random_star_polygons_offset_at_exact_distance() {
 fn large_polygon_completes() {
     let mut rng = Lcg(42);
     let poly = random_star(&mut rng, 5000, 50.0, 100.0);
-    let curves = check_polygon("n=5000", &poly, 1.0);
-    assert!(curves > 0);
+    for arithmetic in ARITHMETICS {
+        let curves = check_polygon("n=5000", &poly, 1.0, arithmetic);
+        assert!(curves > 0);
+    }
 }
 
 #[test]
@@ -130,7 +141,9 @@ fn regular_polygon_with_collinear_and_cocircular_vertices() {
             )
         })
         .collect();
-    check_polygon("regular 64-gon", &poly, 1.0);
+    for arithmetic in ARITHMETICS {
+        check_polygon("regular 64-gon", &poly, 1.0, arithmetic);
+    }
     let mut grid_square = Vec::new();
     for k in 0..10 {
         grid_square.push((k as f64, 0.0));
@@ -144,5 +157,12 @@ fn regular_polygon_with_collinear_and_cocircular_vertices() {
     for k in 0..10 {
         grid_square.push((0.0, 10.0 - k as f64));
     }
-    check_polygon("square with collinear vertices", &grid_square, 1.0);
+    for arithmetic in ARITHMETICS {
+        check_polygon(
+            "square with collinear vertices",
+            &grid_square,
+            1.0,
+            arithmetic,
+        );
+    }
 }

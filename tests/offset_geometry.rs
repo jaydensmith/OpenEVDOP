@@ -653,3 +653,83 @@ fn neither_side_selected_offsets_both_sides() {
     );
     assert_eq!(dists.len(), 2, "inner and outer loop expected");
 }
+
+/// Every curve of every loop as the bit patterns of its coordinates.
+fn curve_bits(v: &Offsetter) -> Vec<Vec<Vec<u64>>> {
+    (0..v.num_offset_loops())
+        .map(|l| {
+            (0..v.num_offset_curves(l).expect("loop exists"))
+                .map(|c| match v.curve(l, c).expect("curve exists") {
+                    OffsetCurve::Line { start, end } => [start.0, start.1, end.0, end.1]
+                        .iter()
+                        .map(|x| x.to_bits())
+                        .collect(),
+                    OffsetCurve::Arc {
+                        start,
+                        end,
+                        center,
+                        orientation,
+                    } => [start.0, start.1, end.0, end.1, center.0, center.1]
+                        .iter()
+                        .map(|x| x.to_bits())
+                        .chain([u64::from(orientation == CW)])
+                        .collect(),
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// A star from the stress generator whose offset at 0.5 has different bits in the two
+/// arithmetics.
+const ARITHMETIC_SENSITIVE_STAR: [(f64, f64); 5] = [
+    (4.426874060425207, 1.7480605463141181),
+    (0.3477302992469246, 3.5066862468025337),
+    (-7.153602676193704, 2.5183478991067965),
+    (-3.806764447049871, -4.095410996898055),
+    (3.8196208126703555, -8.637793073017678),
+];
+const ARITHMETIC_SENSITIVE_RADIUS: f64 = 0.5;
+
+#[test]
+fn extended_differs_from_double() {
+    let star = polygon(&ARITHMETIC_SENSITIVE_STAR);
+    let base = params(ARITHMETIC_SENSITIVE_RADIUS, false, true);
+    let [double, extended] = ARITHMETICS
+        .map(|arithmetic| curve_bits(&run(&star, OffsetParameters { arithmetic, ..base })));
+    let differing: usize = double
+        .iter()
+        .zip(&extended)
+        .map(|(d, e)| d.iter().zip(e).filter(|(x, y)| x != y).count())
+        .sum();
+    println!(
+        "star at {ARITHMETIC_SENSITIVE_RADIUS}: {differing} curves differ between the arithmetics"
+    );
+    assert!(differing > 0, "Extended gave the same bits as Double");
+}
+
+#[test]
+fn switching_arithmetic_between_calls() {
+    let star = polygon(&ARITHMETIC_SENSITIVE_STAR);
+    let base = params(ARITHMETIC_SENSITIVE_RADIUS, false, true);
+    let mut reused = run(&star, base);
+    for arithmetic in [Arithmetic::Double, Arithmetic::Extended, Arithmetic::Double] {
+        let p = OffsetParameters { arithmetic, ..base };
+        reused.parameters = p;
+        reused.compute_offset().expect("compute_offset");
+        let fresh = run(&star, p);
+        let (again, alone) = (curve_bits(&reused), curve_bits(&fresh));
+        for (l, (a, b)) in again.iter().zip(&alone).enumerate() {
+            for (c, (x, y)) in a.iter().zip(b).enumerate() {
+                if x != y {
+                    println!("[{arithmetic:?}] loop {l} curve {c}: reused {x:x?}, fresh {y:x?}");
+                }
+            }
+        }
+        println!("[{arithmetic:?}]: {} loops", again.len());
+        assert_eq!(
+            again, alone,
+            "[{arithmetic:?}] reused Offsetter differs from a fresh one"
+        );
+    }
+}
