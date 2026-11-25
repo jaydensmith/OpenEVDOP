@@ -62,8 +62,8 @@ impl<R: Real> Engine<R> {
     pub(crate) fn seg_clearance(&self, seg: usize, x: f64, y: f64, eps: f64) -> R {
         let s = &self.segs[seg];
         let p = &self.pnts[s.i1];
-        let t = ((R::of(x) - p.x) * s.b - (R::of(y) - p.y) * s.a).stored();
-        if R::of(s.lgth) + eps < t || t < -eps {
+        let t = (R::of(x) - p.x) * s.b - (R::of(y) - p.y) * s.a;
+        if t > R::of(s.lgth) + eps || t < -eps {
             R::of(self.large)
         } else {
             s.signed_dist::<R>(x, y).abs()

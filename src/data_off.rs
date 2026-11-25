@@ -163,8 +163,7 @@ impl<R: Real> Engine<R> {
 
     fn edge_radii_degenerate(&self, e: usize) -> bool {
         let edge = &self.edges[e];
-        let du = (R::of(self.nodes[edge.n1].r) - self.nodes[edge.n2].r).stored();
-        within_zero(du)
+        within_zero(R::of(self.nodes[edge.n1].r) - self.nodes[edge.n2].r)
     }
 
     fn mark_edge_degenerate(&mut self, e: usize) {
@@ -410,14 +409,14 @@ impl<R: Real> Engine<R> {
         let diff = (R::of(n1.r) - n2.r).stored();
         debug_assert!(ZERO < diff || diff < -ZERO, "!eq(t1-t2, ZERO)");
         let (f, base) = if n2.r < n1.r {
-            (((R::of(t) - n2.r) / diff).stored(), n2)
+            ((R::of(t) - n2.r) / diff, n2)
         } else {
-            (((R::of(t) - n1.r) / (R::of(n2.r) - n1.r)).stored(), n1)
+            ((R::of(t) - n1.r) / (R::of(n2.r) - n1.r), n1)
         };
         let data = &self.e_data[e];
         (
             (R::of(data.px) * f + base.x).stored(),
-            (R::of(f) * data.py + base.y).stored(),
+            (f * data.py + base.y).stored(),
         )
     }
 }
@@ -431,8 +430,8 @@ fn node_direction<R: Real>(n1: &Node, n2: &Node) -> (f64, f64) {
     }
 }
 
-fn within_zero(v: f64) -> bool {
-    (-ZERO..=ZERO).contains(&v)
+fn within_zero<R: Real>(v: R) -> bool {
+    v >= -ZERO && v <= ZERO
 }
 
 fn sign_of(v: f64) -> i32 {
