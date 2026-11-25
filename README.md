@@ -39,7 +39,7 @@ for l in 0..v.num_offset_loops() {
 ## Tests
 
 - `tests/offset_geometry.rs` and `tests/stress.rs` check the geometry. Every loop must be closed, contain no zero-length curves, and lie at exactly the offset distance from the input. The inputs include random polygons of up to 5,000 vertices.
-- `tests/reference_outputs.rs` replays `tests/reference/*.script` and compares the result with the recorded `*.expected` output. Values must agree to within 1e-12 relative. In practice they are bit-identical, apart from vertices of approximated arcs, which come from `sin`/`cos`.
+- `tests/reference_outputs.rs` replays `tests/reference/*.script` and compares the result with the recorded `*.expected` output. Values must agree exactly.
 
 ## License
 

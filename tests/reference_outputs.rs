@@ -3,15 +3,12 @@
 //!
 //! Script lines: `P left right radius recover_arcs apx_arcs depletion tolerance`,
 //! `L xs ys xe ye`, `A xs ys xe ye xc yc clockwise`, `R` (reset input), `C` (compute and dump).
-use open_evdop::{OffsetCurve, OffsetParameters, Offsetter, Orientation};
+use open_evdop::{Arithmetic, OffsetCurve, OffsetParameters, Offsetter, Orientation};
 use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 
 const REFERENCE_DIR: &str = "tests/reference";
-/// Values agree bit for bit except vertices of approximated arcs, which come from sin/cos and may
-/// differ in the last bit between math libraries.
-const RELATIVE_TOLERANCE: f64 = 1e-12;
 
 fn parse_bool(token: &str) -> bool {
     token != "0"
@@ -72,6 +69,7 @@ fn replay(script: &str) -> String {
                     apx_arcs: n[4],
                     depletion: n[5],
                     tolerance: n[6],
+                    arithmetic: Arithmetic::Double,
                 };
             }
             Some("L") => {
@@ -106,9 +104,10 @@ fn replay(script: &str) -> String {
     out
 }
 
+/// Numbers agree when they are the same double; the files print some with 17 significant digits.
 fn tokens_match(expected: &str, actual: &str) -> bool {
     match (expected.parse::<f64>(), actual.parse::<f64>()) {
-        (Ok(e), Ok(a)) => (e - a).abs() <= RELATIVE_TOLERANCE * e.abs().max(1.0),
+        (Ok(e), Ok(a)) => e.to_bits() == a.to_bits(),
         _ => expected == actual,
     }
 }

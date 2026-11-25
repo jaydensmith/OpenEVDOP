@@ -1,6 +1,7 @@
 use crate::consts::*;
 use crate::state::*;
 use std::f64::consts::TAU;
+use x87_extended::double::{acos, atan2, cos, sin};
 
 impl Engine {
     /// Replaces every arc by a circumscribed polygonal chain whose deviation from the arc is at
@@ -31,8 +32,8 @@ impl Engine {
                 (arc.i2, arc.i1)
             };
 
-            let mut a1 = (p1.y - cy).atan2(p1.x - cx);
-            let mut a2 = (p2.y - cy).atan2(p2.x - cx);
+            let mut a1 = atan2(p1.y - cy, p1.x - cx);
+            let mut a2 = atan2(p2.y - cy, p2.x - cx);
             if 0.0 > a1 {
                 a1 += TAU;
             }
@@ -43,7 +44,7 @@ impl Engine {
                 a2 += TAU;
             }
 
-            let max_incr = (r / (r + apx_abs)).acos();
+            let max_incr = acos(r / (r + apx_abs));
             debug_assert!(max_incr > ZERO, "gt(max_incr, ZERO)");
             let sweep = a2 - a1;
             let pieces = sweep / (max_incr + max_incr);
@@ -54,7 +55,7 @@ impl Engine {
             debug_assert!(number > 0, "number > 0");
             let mut incr = sweep / f64::from(number);
             let half = incr * 0.5;
-            let radius = r / half.cos();
+            let radius = r / cos(half);
             let mut angle = if arc.ccw {
                 half + a1
             } else {
@@ -64,7 +65,7 @@ impl Engine {
 
             vertices.clear();
             for _ in 0..number {
-                vertices.push((angle.cos() * radius + cx, angle.sin() * radius + cy));
+                vertices.push((cos(angle) * radius + cx, sin(angle) * radius + cy));
                 angle += incr;
             }
 

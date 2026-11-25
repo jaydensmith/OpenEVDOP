@@ -32,4 +32,4 @@ mod vd_seg;
 
 pub use api_functions::{OffsetCurve, Orientation};
 pub use error::OffsetError;
-pub use offsetter::{OffsetParameters, Offsetter};
+pub use offsetter::{Arithmetic, OffsetParameters, Offsetter};

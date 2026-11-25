@@ -5,6 +5,17 @@ use crate::state::Engine;
 const DEFAULT_OFFSET_RADIUS: f64 = 5.0;
 const DEFAULT_APX_ARCS: f64 = 0.001;
 
+/// The arithmetic an offset is computed in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Arithmetic {
+    /// `f64` throughout.
+    #[default]
+    Double,
+    /// The x87's 80-bit registers at 64-bit precision; values are rounded to `f64` where they are
+    /// stored.
+    Extended,
+}
+
 /// Offset computation settings.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OffsetParameters {
@@ -18,6 +29,7 @@ pub struct OffsetParameters {
     pub depletion: f64,
     /// Start points within this distance of the previous end point are snapped onto it.
     pub tolerance: f64,
+    pub arithmetic: Arithmetic,
 }
 
 impl Default for OffsetParameters {
@@ -30,6 +42,7 @@ impl Default for OffsetParameters {
             apx_arcs: DEFAULT_APX_ARCS,
             depletion: 0.0,
             tolerance: 0.0,
+            arithmetic: Arithmetic::Double,
         }
     }
 }
