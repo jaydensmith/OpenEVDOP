@@ -18,12 +18,10 @@ fn sign_open_lower<R: Real>(v: R) -> i32 {
 }
 
 fn sign_closed_lower<R: Real>(v: R) -> i32 {
-    if v > ZERO || v != v {
-        1
-    } else if v >= -ZERO {
-        0
+    if v <= ZERO {
+        if v >= -ZERO { 0 } else { -1 }
     } else {
-        -1
+        1
     }
 }
 

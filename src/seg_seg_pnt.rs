@@ -87,7 +87,7 @@ impl<R: Real> Engine<R> {
         let si = self.segs[i];
         let sj = self.segs[j];
         let d = R::of(pk.y) * sj.b + R::of(pk.x) * sj.a + sj.c;
-        if d >= -ZERO && d <= ZERO {
+        if (R::of(-ZERO)..=R::of(ZERO)).contains(&d) {
             return false;
         }
         let q = R::of(sj.a) * si.a + R::of(sj.b) * si.b;

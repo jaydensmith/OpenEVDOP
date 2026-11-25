@@ -428,7 +428,7 @@ fn node_direction<R: Real>(n1: &Node, n2: &Node) -> (f64, f64) {
 }
 
 fn within_zero<R: Real>(v: R) -> bool {
-    v >= -ZERO && v <= ZERO
+    (R::of(-ZERO)..=R::of(ZERO)).contains(&v)
 }
 
 fn sign_of<R: Real>(v: R) -> i32 {
