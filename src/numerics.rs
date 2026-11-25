@@ -137,7 +137,7 @@ fn root_sign(f: f64) -> i32 {
     }
 }
 
-pub(crate) fn exact_sign(f: f64) -> i32 {
+pub(crate) fn exact_sign<R: Real>(f: R) -> i32 {
     if f > 0.0 {
         1
     } else if f >= 0.0 {

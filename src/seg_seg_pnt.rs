@@ -86,27 +86,27 @@ impl<R: Real> Engine<R> {
     ) -> bool {
         let si = self.segs[i];
         let sj = self.segs[j];
-        let d = (R::of(pk.x) * sj.a + R::of(pk.y) * sj.b + sj.c).stored();
-        if (-ZERO..=ZERO).contains(&d) {
+        let d = R::of(pk.y) * sj.b + R::of(pk.x) * sj.a + sj.c;
+        if d >= -ZERO && d <= ZERO {
             return false;
         }
-        let q = (R::of(sj.b) * si.b + R::of(sj.a) * si.a).stored();
+        let q = R::of(sj.a) * si.a + R::of(sj.b) * si.b;
         let mut roots = [0.0; 2];
         let mut count = 0;
         if q > ZERO || q < -ZERO {
             let s = f64::from(exact_sign(d));
-            let den1 = (R::of(s) + q).stored();
+            let den1 = q + s;
             if den1 > ZERO || den1 < -ZERO {
-                roots[0] = (-(R::of(d) / den1)).stored();
+                roots[0] = (-(d / den1)).stored();
                 count = 1;
             }
-            let den2 = (R::of(s) - q).stored();
+            let den2 = R::of(s) - q;
             if den2 > ZERO || den2 < -ZERO {
-                roots[count] = (R::of(d) / den2).stored();
+                roots[count] = (d / den2).stored();
                 count += 1;
             }
         } else {
-            roots = [-d, d];
+            roots = [(-d).stored(), d.stored()];
             count = 2;
         }
         let at = |t: f64| Point {
@@ -117,7 +117,7 @@ impl<R: Real> Engine<R> {
             2 => {
                 let c1 = at(roots[0]);
                 let c2 = at(roots[1]);
-                let qual = self.qualify_stored_first(j, c1, c2);
+                let qual = self.qualify_on_seg(j, self.seg_param(j, c1), self.seg_param(j, c2));
                 let (second, ambiguous) = match qual {
                     Qualification::First => (false, false),
                     Qualification::Second => (true, false),
