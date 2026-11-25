@@ -35,7 +35,7 @@ for l in 0..v.num_offset_loops() {
 - **Intersecting input is repaired, not rejected.** Crossing or touching segments are split and the computation restarts, up to 500 times before `Err(OffsetError::TooManyRestarts)`. If no Voronoi node can be computed even by the fallback routines, the result is `Err(OffsetError::NumericalFailure)`.
 - **No offset is computed for non-positive radii.** For `offset_radius <= 1e-11`, `compute_offset` returns `Ok` with zero loops.
 - **No zero-length curves.** Curves whose two ends coincide, for example at tangent joints such as two arcs forming a circle, are left out of the output.
-- **Arithmetic.** `Arithmetic::Extended` computes like an x87 FPU at 64-bit precision, rounding to `f64` only where values are stored; it is much slower than `Double`. Both modes use correctly rounded `sin`, `cos` and `acos`, so results are identical on every platform.
+- **Arithmetic.** `Arithmetic::Extended` computes like an x87 FPU at 64-bit precision, rounding to `f64` only where values are stored; it is much slower than `Double`. Both modes use correctly rounded `sin`, `cos` and `acos`, so results are identical on every platform; each call takes tens of microseconds, so input with many arcs takes longer to approximate than with the platform's own functions.
 
 ## Tests
 
