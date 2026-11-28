@@ -96,32 +96,24 @@ impl<R: Real> Engine<R> {
         )
     }
 
-    /// The traced offset loops in input coordinates. Curves whose ends coincide (zero-sweep vertex
-    /// arcs at tangent joints) are left out.
+    /// The traced offset loops in input coordinates, every curve kept, however short, so each ends
+    /// where the next starts.
     pub(crate) fn offset_curves(&self) -> Vec<Vec<OffsetCurve>> {
         self.offset_loops
             .iter()
             .map(|l| {
                 let elems = &self.offset_elems[l.start..=l.end];
                 (0..elems.len())
-                    .filter_map(|k| self.offset_curve(elems[k], elems[(k + 1) % elems.len()]))
-                    .collect::<Vec<_>>()
+                    .map(|k| self.offset_curve(elems[k], elems[(k + 1) % elems.len()]))
+                    .collect()
             })
-            .filter(|curves| !curves.is_empty())
             .collect()
     }
 
-    fn offset_curve(&self, elem: OffsetElem, next: OffsetElem) -> Option<OffsetCurve> {
-        let (dx, dy) = (
-            (R::of(next.x) - elem.x).stored(),
-            (R::of(next.y) - elem.y).stored(),
-        );
-        if (R::of(dx) * dx + R::of(dy) * dy).sqrt() <= ZERO {
-            return None;
-        }
+    fn offset_curve(&self, elem: OffsetElem, next: OffsetElem) -> OffsetCurve {
         let start = self.unscale(elem.x, elem.y);
         let end = self.unscale(next.x, next.y);
-        Some(match elem.kind {
+        match elem.kind {
             OffsetKind::Line => OffsetCurve::Line { start, end },
             OffsetKind::PntArc => {
                 let c = self.pnts[elem.site];
@@ -146,6 +138,6 @@ impl<R: Real> Engine<R> {
                     orientation,
                 }
             }
-        })
+        }
     }
 }

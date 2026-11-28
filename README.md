@@ -34,12 +34,12 @@ for l in 0..v.num_offset_loops() {
 - **Successive offsets.** `depletion` is the offset step: a non-zero value produces loops at `radius`, `radius + depletion`, `radius + 2·depletion`, … up to the largest meaningful offset. With 0 you get a single offset.
 - **Intersecting input is repaired, not rejected.** Crossing or touching segments are split and the computation restarts, up to 500 times before `Err(OffsetError::TooManyRestarts)`. If no Voronoi node can be computed even by the fallback routines, the result is `Err(OffsetError::NumericalFailure)`.
 - **No offset is computed for non-positive radii.** For `offset_radius <= 1e-11`, `compute_offset` returns `Ok` with zero loops.
-- **No zero-length curves.** Curves whose two ends coincide, for example at tangent joints such as two arcs forming a circle, are left out of the output.
+- **Every curve is returned.** Each curve ends bit for bit where the next starts. At a tangent joint, such as where two arcs form a circle, the loop holds a vertex arc of no length: its two ends are the same point, or lie within rounding of each other in either order. Treat such an arc as having no sweep, whatever its orientation says.
 - **Arithmetic.** `Arithmetic::Extended` computes like an x87 FPU at 64-bit precision, rounding to `f64` only where values are stored; it is much slower than `Double`. Both modes use correctly rounded `sin`, `cos` and `acos`, so results are identical on every platform; each call takes tens of microseconds, so input with many arcs takes longer to approximate than with the platform's own functions.
 
 ## Tests
 
-- `tests/offset_geometry.rs` and `tests/stress.rs` check the geometry in both arithmetic modes. Every loop must be closed, contain no zero-length curves, and lie at exactly the offset distance from the input. The inputs include random polygons of up to 5,000 vertices.
+- `tests/offset_geometry.rs` and `tests/stress.rs` check the geometry in both arithmetic modes. Every curve must end bit for bit where the next starts, and every loop must lie at exactly the offset distance from the input. The inputs include random polygons of up to 5,000 vertices.
 - `tests/reference_outputs.rs` replays `tests/reference/*.script` and compares the result with the recorded output: `*.expected` for `Arithmetic::Double` and `*.extended.expected` for `Arithmetic::Extended`. Values must agree exactly.
 
 ## License

@@ -3,6 +3,8 @@ use std::f64::consts::TAU;
 use std::time::Instant;
 
 const TOLERANCE: f64 = 1e-7;
+/// A vertex arc at a tangent or collinear joint has ends within rounding of each other and no sweep.
+const VERTEX_ARC_CHORD: f64 = 1e-9;
 const ARITHMETICS: [Arithmetic; 2] = [Arithmetic::Double, Arithmetic::Extended];
 
 struct Lcg(u64);
@@ -49,7 +51,9 @@ fn sample(curve: OffsetCurve, t: f64) -> (f64, f64) {
             let a0 = (start.1 - center.1).atan2(start.0 - center.0);
             let a1 = (end.1 - center.1).atan2(end.0 - center.0);
             let ccw = (a1 - a0).rem_euclid(TAU);
+            let chord = ((end.0 - start.0).powi(2) + (end.1 - start.1).powi(2)).sqrt();
             let sweep = match orientation {
+                _ if chord <= VERTEX_ARC_CHORD => 0.0,
                 Orientation::CounterClockwise => ccw,
                 Orientation::Clockwise => ccw - TAU,
             };

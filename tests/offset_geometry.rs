@@ -70,7 +70,8 @@ fn nearest_input_distance(inputs: &[Input], p: (f64, f64)) -> f64 {
         .fold(f64::INFINITY, f64::min)
 }
 
-/// Points along an output curve; arcs are swept in their reported orientation.
+/// Points along an output curve; arcs are swept in their reported orientation, except a vertex arc
+/// at a tangent joint, whose ends lie within rounding of each other and which has no sweep.
 fn curve_samples(curve: &OffsetCurve) -> Vec<(f64, f64)> {
     (0..=SAMPLES_PER_CURVE)
         .map(|k| {
@@ -89,6 +90,7 @@ fn curve_samples(curve: &OffsetCurve) -> Vec<(f64, f64)> {
                     let (a0, a1) = (angle_of(start, center), angle_of(end, center));
                     let ccw = ccw_sweep(a0, a1);
                     let sweep = match orientation {
+                        _ if dist(start, end) <= LINE_TOLERANCE => 0.0,
                         Orientation::CounterClockwise => ccw,
                         Orientation::Clockwise => ccw - TAU,
                     };
@@ -99,6 +101,10 @@ fn curve_samples(curve: &OffsetCurve) -> Vec<(f64, f64)> {
             }
         })
         .collect()
+}
+
+fn same_point(a: (f64, f64), b: (f64, f64)) -> bool {
+    (a.0.to_bits(), a.1.to_bits()) == (b.0.to_bits(), b.1.to_bits())
 }
 
 fn curve_endpoints(curve: &OffsetCurve) -> ((f64, f64), (f64, f64)) {
@@ -184,14 +190,12 @@ fn check_offsets_in(
         loop_dists.push(expected);
         println!("  loop {l}: {n} curves at distance {expected:.9}");
         for (c, curve) in curves.iter().enumerate() {
-            let (start, end) = curve_endpoints(curve);
-            if dist(start, end) <= LINE_TOLERANCE {
-                errors.push(format!("loop {l} curve {c}: zero-length curve {curve:?}"));
-            }
+            let (_, end) = curve_endpoints(curve);
             let (next_start, _) = curve_endpoints(&curves[(c + 1) % n]);
-            if dist(end, next_start) > tolerance {
+            if !same_point(end, next_start) {
                 errors.push(format!(
-                    "loop {l} curve {c}: end {end:?} != next start {next_start:?}"
+                    "loop {l} curve {c}: end {end:?} != next start {next_start:?}, {:e} away",
+                    dist(end, next_start)
                 ));
             }
             if let OffsetCurve::Arc {
@@ -547,16 +551,180 @@ fn reset_input_forgets_the_snapping_end_point() {
 }
 
 #[test]
-fn tangent_joints_produce_no_zero_length_curves() {
-    let v = run(&circle(5.0, CCW), params(1.0, false, true));
-    let curves: Vec<_> = (0..v.num_offset_curves(0).unwrap())
-        .map(|c| v.curve(0, c).unwrap())
+fn tangent_joints_keep_their_vertex_arcs() {
+    let joints = [(5.0, 0.0), (-5.0, 0.0)];
+    for arithmetic in ARITHMETICS {
+        let v = run(
+            &circle(5.0, CCW),
+            OffsetParameters {
+                arithmetic,
+                ..params(1.0, false, true)
+            },
+        );
+        let curves: Vec<_> = (0..v.num_offset_curves(0).unwrap())
+            .map(|c| v.curve(0, c).unwrap())
+            .collect();
+        println!("[{arithmetic:?}] {curves:#?}");
+        assert_eq!(
+            curves.len(),
+            4,
+            "[{arithmetic:?}] the two recovered arcs and a vertex arc at each joint"
+        );
+        let vertex_arcs: Vec<_> = curves
+            .iter()
+            .filter_map(|curve| match *curve {
+                OffsetCurve::Arc {
+                    start,
+                    end,
+                    center,
+                    orientation: CW,
+                } if joints.contains(&center) => Some(dist(start, end)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            vertex_arcs.len(),
+            joints.len(),
+            "[{arithmetic:?}] one clockwise arc about each joint"
+        );
+        assert!(
+            vertex_arcs.iter().all(|&length| length <= LINE_TOLERANCE),
+            "[{arithmetic:?}] the vertex arcs have no length: {vertex_arcs:?}"
+        );
+    }
+}
+
+/// A stored FomCam contour (`BO4465`, machining "Arslan Samlple"): four arcs, counter-clockwise,
+/// meeting tangentially; each row is the bits of its start, end and centre.
+const TANGENT_ARCS_BITS: [[u64; 6]; 4] = [
+    [
+        0x405226666666665f,
+        0x400bfffffffffc38,
+        0xc05226666666663c,
+        0x400c000000000612,
+        0xbd7af0f885e98a7e,
+        0xc06c6905bd6ac337,
+    ],
+    [
+        0xc05226666666663c,
+        0x400c000000000612,
+        0xc0522666666666a6,
+        0xc00bfffffffffda0,
+        0xc051dfeef8d02013,
+        0x3d511bbe12287f6c,
+    ],
+    [
+        0xc0522666666666a6,
+        0xc00bfffffffffda0,
+        0x40522666666665fd,
+        0xc00c000000000439,
+        0xbd037dae9dda1edd,
+        0x406c6905bd6ac330,
+    ],
+    [
+        0x40522666666665fd,
+        0xc00c000000000439,
+        0x405226666666665f,
+        0x400bfffffffffc38,
+        0x4051dfeef8d01f64,
+        0xbd5099e0072083e7,
+    ],
+];
+const TANGENT_ARCS_RADIUS: f64 = 2.5;
+const TANGENT_ARCS_APX: f64 = 0.1;
+/// How far a vertex arc's centre may lie from its input vertex after scaling and unscaling.
+const VERTEX_CENTRE_TOLERANCE: f64 = 1e-12;
+
+fn tangent_arcs() -> Vec<Input> {
+    let point = |x: u64, y: u64| (f64::from_bits(x), f64::from_bits(y));
+    TANGENT_ARCS_BITS
+        .iter()
+        .map(|&[xs, ys, xe, ye, xc, yc]| Input::Arc {
+            start: point(xs, ys),
+            end: point(xe, ye),
+            center: point(xc, yc),
+            orientation: CCW,
+        })
+        .collect()
+}
+
+#[test]
+fn curves_shorter_than_zero_keep_the_loop_closed_bit_for_bit() {
+    let inputs = tangent_arcs();
+    let vertices: Vec<(f64, f64)> = inputs
+        .iter()
+        .map(|input| match *input {
+            Input::Arc { start, .. } | Input::Line { start, .. } => start,
+        })
         .collect();
-    assert_eq!(
-        curves.len(),
-        2,
-        "offset circle is exactly the two recovered arcs: {curves:#?}"
-    );
+    for arithmetic in ARITHMETICS {
+        let v = run(
+            &inputs,
+            OffsetParameters {
+                left_offset: true,
+                right_offset: false,
+                offset_radius: TANGENT_ARCS_RADIUS,
+                recover_arcs: true,
+                apx_arcs: TANGENT_ARCS_APX,
+                depletion: 0.0,
+                tolerance: 0.0,
+                arithmetic,
+            },
+        );
+        assert_eq!(v.num_offset_loops(), 1, "[{arithmetic:?}] one loop");
+        let n = v.num_offset_curves(0).expect("loop exists");
+        let curves: Vec<OffsetCurve> = (0..n)
+            .map(|c| v.curve(0, c).expect("curve exists"))
+            .collect();
+        let mut gaps = Vec::new();
+        for (c, curve) in curves.iter().enumerate() {
+            let (start, end) = curve_endpoints(curve);
+            let (next_start, _) = curve_endpoints(&curves[(c + 1) % n]);
+            println!(
+                "[{arithmetic:?}] curve {c}: {curve:?}, length {:e}",
+                dist(start, end)
+            );
+            if !same_point(end, next_start) {
+                gaps.push(format!(
+                    "curve {c} ends at {end:?}, curve {} starts at {next_start:?}, {:e} away",
+                    (c + 1) % n,
+                    dist(end, next_start)
+                ));
+            }
+        }
+        for gap in &gaps {
+            println!("[{arithmetic:?}] gap: {gap}");
+        }
+        assert!(
+            gaps.is_empty(),
+            "[{arithmetic:?}] {} gaps in the loop",
+            gaps.len()
+        );
+        let vertex_arcs: Vec<(f64, f64)> = curves
+            .iter()
+            .filter_map(|curve| match *curve {
+                OffsetCurve::Arc {
+                    center,
+                    orientation: CW,
+                    ..
+                } => Some(center),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            vertex_arcs.len(),
+            vertices.len(),
+            "[{arithmetic:?}] one clockwise vertex arc at each tangent joint: {vertex_arcs:?}"
+        );
+        for centre in &vertex_arcs {
+            assert!(
+                vertices
+                    .iter()
+                    .any(|&vertex| dist(*centre, vertex) <= VERTEX_CENTRE_TOLERANCE),
+                "[{arithmetic:?}] vertex arc about {centre:?} lies at no input vertex {vertices:?}"
+            );
+        }
+    }
 }
 
 #[test]

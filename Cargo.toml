@@ -1,6 +1,6 @@
 [package]
 name = "open-evdop"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "Voronoi diagram computation for points, line segments, and circular arcs with offset curve extraction"
 license = "MIT OR Apache-2.0"
